@@ -1,0 +1,32 @@
+# --- Vaapsi: never commit secrets, env, venv, or runtime state ---
+.env
+.env.*
+!.env.example
+
+.venv/
+venv/
+
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# runtime state (SQLite ledger, raw webhook archive, drill logs)
+data/
+chaos/logs/
+
+# local binaries (cloudflared etc.) — never in the repo
+tools/
+
+node_modules/
+.coverage
+htmlcov/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+.idea/
+.vscode/
