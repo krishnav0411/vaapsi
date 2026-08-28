@@ -37,10 +37,13 @@ import httpx
 
 from app.actions.base import ActionClient
 from app.actions.execute import execute_episode_action
+from app.actions.request_retry import maybe_request_retry
+from app.audit import ledger
 from app.audit.ledger import canonical_json
 from app.core import episodes
 from app.gates import human_gate
 from app.llm.base import LLMClient, LLMError
+from app.policy import fencing
 from app.policy.engine import evaluate
 from app.scoring.scorecard import ScoreResult, score_episode
 from app.settings import get_settings
@@ -133,16 +136,33 @@ def run_recovery_cycle(
     client: LLMClient | None = None,
     *,
     action_client: ActionClient | None = None,
+    fence_client: Any | None = None,
 ) -> dict[str, Any]:
     """Drive one recovery cycle for a subscription's open episode.
 
     Returns a summary dict: {'subscription_id', 'episode_id', 'status',
     'tier', 'mode', 'variant', 'reason', 'state_after', 'approval_id'} —
     status one of 'dispatched' | 'gated' | 'blocked' | 'skipped' |
-    'no_open_episode'. `client` is the LLMClient (None → rules-only,
-    DEGRADED); `action_client` is the Razorpay-backed ActionClient (None →
-    offline RecordingStub, the demo/test default — no network unless prod
-    injects one explicitly).
+    'no_open_episode' | 'request_retry'. `client` is the LLMClient (None →
+    rules-only, DEGRADED); `action_client` is the Razorpay-backed
+    ActionClient (None → offline RecordingStub, the demo/test default — no
+    network unless prod injects one explicitly). `fence_client` is the
+    fetch_subscription-capable provider client behind the dispatch fences
+    (app.policy.fencing + app.actions.request_retry); None disables
+    fencing entirely (the offline default — existing behavior unchanged).
+    With one injected, the cycle runs three fences, all ledgered and all
+    degrading to logged no-ops rather than raising:
+
+    1. guard_dispatch — look-before-leap: a subscription not freshly
+       "halted" writes FENCE_BLOCKED and ends the cycle before any work.
+    2. stale-inference guard — the fingerprint is snapshotted before the
+       LLM call and re-computed after; a change writes DISCARDED_STALE and
+       leaves the episode for the next cycle (two-transaction pattern).
+    3. verify-after-write — after a link exists, a moved subscription
+       triggers best-effort link cancellation plus an always-on
+       COMPENSATION row; REQUEST_RETRY stands back while the platform's
+       own dunning will retry (ACTION_REQUEST_RETRY, revisit_at = now +
+       cooling), falling through to the payment-link path otherwise.
     """
     summary: dict[str, Any] = {
         "subscription_id": subscription_id,
@@ -168,10 +188,70 @@ def run_recovery_cycle(
         summary["state_after"] = episode["state"]
         return summary
 
+    # Fence 1 — look-before-leap. No cycle acts on a subscription the
+    # provider no longer reports as halted (or that cannot be verified at
+    # all — fail-closed). A blocked fence lands its own ledger row and
+    # ends the cycle with zero further action; the episode stays put.
+    snapshot: dict[str, Any] | None = None
+    if fence_client is not None:
+        guard = fencing.guard_dispatch(fence_client, episode)
+        if guard["blocked"]:
+            ledger.append(
+                conn,
+                subscription_id=subscription_id,
+                trigger_event="fence.guard_dispatch",
+                policy_eval={
+                    "decision": "fence_blocked",
+                    "episode_id": episode["id"],
+                    "reason": guard["reason"],
+                    "fresh_status": guard["fresh_status"],
+                    "error": guard["error"],
+                },
+                human_gate=False,
+                outcome=fencing.FENCE_BLOCKED_OUTCOME,
+                mode=episodes.DEFAULT_MODE,
+            )
+            summary["status"] = "blocked"
+            summary["reason"] = guard["reason"]
+            summary["state_after"] = episode["state"]
+            return summary
+        snapshot = guard["subscription"]
+
     score = score_episode(conn, episode)
     summary["tier"] = score.tier
     choice, mode, llm_evidence = _decide(episode, score, client)
     summary["mode"] = mode
+
+    # Fence 2 — stale-inference guard (two-transaction pattern): the
+    # fingerprint above was snapshotted from the provider before the LLM
+    # call; now that inference returned with no lock held, re-compute from
+    # a fresh fetch. A changed fingerprint means the world moved under us:
+    # the diagnosis is discarded, DISCARDED_STALE lands in the ledger, and
+    # the episode is left untouched for the next cycle. An unreadable
+    # provider degrades to proceeding — the verify-after-write fence still
+    # covers the dispatch.
+    if fence_client is not None and snapshot is not None:
+        pre_fp = fencing.fingerprint_subscription(snapshot)
+        recheck = fencing.fresh_fingerprint(fence_client, subscription_id)
+        if recheck["fingerprint"] is not None and recheck["fingerprint"] != pre_fp:
+            ledger.append(
+                conn,
+                subscription_id=subscription_id,
+                trigger_event="fence.stale_inference",
+                policy_eval={
+                    "decision": "discard_stale",
+                    "episode_id": episode["id"],
+                    "pre_fingerprint": pre_fp,
+                    "post_fingerprint": recheck["fingerprint"],
+                },
+                human_gate=False,
+                outcome=fencing.DISCARDED_STALE_OUTCOME,
+                mode=mode,
+            )
+            summary["status"] = "blocked"
+            summary["reason"] = "stale_fingerprint"
+            summary["state_after"] = episode["state"]
+            return summary
 
     # Pipeline states land with their own ledger rows (the D2 demo stamped
     # these by hand; D3 makes them real evidence). Both transitions carry
@@ -240,6 +320,22 @@ def run_recovery_cycle(
         summary["reason"] = reason
         summary["approval_id"] = approval_id
     else:
+        # REQUEST_RETRY — action selection before dispatch: while the
+        # platform's own dunning will retry on its own, Vaapsi stands
+        # back (one ACTION_REQUEST_RETRY ledger row, revisit_at = now +
+        # cooling, no customer outreach, episode untouched). Consulted
+        # only after every policy gate returned SEND and the human-gate
+        # routing did not fire, so all existing gates (cooling, 48h
+        # interval, attempt cap, quiet hours, cohort) bound it exactly
+        # like any other action. Not retrying → fall through to the
+        # existing payment-link path below.
+        if fence_client is not None:
+            retry = maybe_request_retry(conn, episode, fence_client, mode=mode)
+            if retry["handled"]:
+                summary["status"] = "request_retry"
+                summary["reason"] = retry["reason"]
+                summary["state_after"] = episodes.get_episode(conn, episode["id"])["state"]
+                return summary
         result = execute_episode_action(conn, episode, client=action_client, mode=mode)
         # The pre-check above already saw SEND on a fresh SCORED row; the
         # executor re-evaluates atomically. A non-dispatch here would mean
@@ -255,5 +351,15 @@ def run_recovery_cycle(
             # (or the fallback) produced a choice.
             if choice is not None:
                 summary["variant"] = choice["message_variant"]
+            # Fence 3 — verify-after-write. The link exists now: re-check
+            # that the subscription did not move while we dispatched. If
+            # it did, the fence best-effort cancels the link and ALWAYS
+            # lands a COMPENSATION row. A DLQ-quarantined dispatch never
+            # produced a link id — nothing to compensate.
+            link_id = None
+            if result.get("action") is not None:
+                link_id = (result["action"].get("rzp_response") or {}).get("link_id")
+            if fence_client is not None and link_id:
+                fencing.verify_after_write(conn, fence_client, subscription_id, link_id)
     summary["state_after"] = episodes.get_episode(conn, episode["id"])["state"]
     return summary

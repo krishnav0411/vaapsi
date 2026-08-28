@@ -39,6 +39,16 @@ Tier rules — evaluated in order, FIRST match wins:
 PROMPT-INJECTION NOTE: last_error_code is extracted from webhook payloads
 (customer-controlled data paths) and used only for this classification;
 it is never interpreted as instructions anywhere.
+
+Failure-category integration (app.actions.classifier): the last error
+code is also classified into the closed category set (TRANSIENT_RETRYABLE
+/ AUTH_REQUIRED / HARD_DECLINE / MANDATE_REVOKED / NETWORK / UNKNOWN) and
+modulates the result's URGENCY — TRANSIENT_RETRYABLE lowers it,
+MANDATE_REVOKED / HARD_DECLINE raise it, AUTH_REQUIRED sits at the
+medium baseline. Urgency is carried evidence, clamped to [1, 3]; the
+tier itself — which routes the human gate, the fallback flavor, and the
+dispatch — is deliberately unchanged, so UNKNOWN (and everything else)
+behaves exactly as before this integration.
 """
 
 import json
@@ -47,6 +57,14 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
+from app.actions.classifier import (
+    AUTH_REQUIRED,
+    HARD_DECLINE,
+    MANDATE_REVOKED,
+    TRANSIENT_RETRYABLE,
+    UNKNOWN,
+    classify_failure,
+)
 from app.actions.recovery_link import RECOVERY_PLAN_PAISE
 from app.policy.engine import HUMAN_GATE_THRESHOLD_PAISE
 
@@ -70,16 +88,36 @@ TRANSIENT_ERROR_CODES = frozenset({"GATEWAY_ERROR", "NETWORK_ERROR", "TIMED_OUT"
 GENTLE_MAX_FAILURES = 1
 ESCALATE_MIN_FAILURES = 3
 
+# Urgency modulation by failure category (see module docstring): the tier
+# is the ROUTING decision and stays frozen; urgency is the classifier's
+# modulation on top — clamped to the tier range so it can never widen what
+# the pipeline may do. UNKNOWN (and the unmentioned NETWORK) carry zero
+# modifier: exactly the pre-classifier behavior.
+URGENCY_MODIFIERS: dict[str, float] = {
+    TRANSIENT_RETRYABLE: -1.0,
+    MANDATE_REVOKED: 1.0,
+    HARD_DECLINE: 0.5,
+    AUTH_REQUIRED: 0.0,
+    UNKNOWN: 0.0,
+}
+
 _MIN_DT = datetime.min.replace(tzinfo=timezone.utc)
 
 
 @dataclass
 class ScoreResult:
-    """One scorer verdict: tier plus every feature that produced it."""
+    """One scorer verdict: tier plus every feature that produced it.
+
+    `failure_category` is the classifier's closed-set reading of
+    last_error_code; `urgency` is the tier modulated by that category,
+    clamped to [1, 3] — evidence for the ledger, never a gate input.
+    """
 
     tier: int
     features: dict
     rationale: str
+    failure_category: str
+    urgency: float
 
 
 def _parse_utc(ts: str | None) -> datetime:
@@ -239,6 +277,7 @@ def _decide(features: dict[str, Any]) -> ScoreResult:
     amount = features["amount_paise"]
     consecutive_failures = features["consecutive_failures"]
     age_days = features["subscription_age_days"]
+    category = classify_failure(features["last_error_code"])
 
     if consecutive_failures <= GENTLE_MAX_FAILURES and features["last_error_code"] in TRANSIENT_ERROR_CODES:
         return ScoreResult(
@@ -247,8 +286,10 @@ def _decide(features: dict[str, Any]) -> ScoreResult:
             rationale=(
                 f"TIER 1 gentle nudge: {consecutive_failures} consecutive failure(s) "
                 f"with transient-looking last error {code_display}; amount {amount} paise; "
-                f"subscription age {age_days} days."
+                f"subscription age {age_days} days. Failure category {category}."
             ),
+            failure_category=category,
+            urgency=_urgency(1, category),
         )
 
     if amount > HUMAN_GATE_THRESHOLD_PAISE:
@@ -258,8 +299,11 @@ def _decide(features: dict[str, Any]) -> ScoreResult:
             rationale=(
                 f"TIER 3 human review: amount {amount} paise exceeds the "
                 f"{HUMAN_GATE_THRESHOLD_PAISE} paise human-gate threshold; "
-                f"{consecutive_failures} consecutive failure(s), last error {code_display}."
+                f"{consecutive_failures} consecutive failure(s), last error {code_display}. "
+                f"Failure category {category}."
             ),
+            failure_category=category,
+            urgency=_urgency(3, category),
         )
 
     if consecutive_failures >= ESCALATE_MIN_FAILURES:
@@ -269,8 +313,11 @@ def _decide(features: dict[str, Any]) -> ScoreResult:
             rationale=(
                 f"TIER 3 human review: {consecutive_failures} consecutive failures "
                 f"meets the escalation bar of {ESCALATE_MIN_FAILURES}; "
-                f"last error {code_display}; amount {amount} paise."
+                f"last error {code_display}; amount {amount} paise. "
+                f"Failure category {category}."
             ),
+            failure_category=category,
+            urgency=_urgency(3, category),
         )
 
     return ScoreResult(
@@ -279,6 +326,18 @@ def _decide(features: dict[str, Any]) -> ScoreResult:
         rationale=(
             f"TIER 2 standard recovery: {consecutive_failures} consecutive failure(s), "
             f"last error {code_display}; amount {amount} paise; "
-            f"subscription age {age_days} days."
+            f"subscription age {age_days} days. Failure category {category}."
         ),
+        failure_category=category,
+        urgency=_urgency(2, category),
     )
+
+
+def _urgency(tier: int, category: str) -> float:
+    """Tier modulated by the failure category, clamped to the tier range.
+
+    Unknown categories carry zero modifier (defensive — classify_failure
+    already only emits the frozen set), so urgency degrades to the tier.
+    """
+    modifier = URGENCY_MODIFIERS.get(category, 0.0)
+    return round(max(1.0, min(3.0, tier + modifier)), 2)
