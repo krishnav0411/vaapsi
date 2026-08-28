@@ -1,0 +1,173 @@
+/*
+ * Vaapsi design tokens — Razorpay Blade is the design law.
+ *
+ * Every value here is copied from that contract (Razorpay Blade,
+ * azure #1364F1 primary). No invented tokens. The same values live in
+ * (a) the Tailwind @theme below (utilities like bg-primary, text-muted)
+ * and (b) the :root custom-property block, so both utility classes and
+ * raw var() consumers get identical values.
+ *
+ * Fonts: vendored woff2 from @razorpay/blade@12.121.0 (TASA Orbiter
+ * variable + Inter variable, its own fonts.css) — served from
+ * /fonts/fonts/, no CDN hotlinks. TASA Orbiter WAS in the package, so
+ * no fallback substitution was needed.
+ */
+
+@import "tailwindcss";
+@import "../public/fonts/fonts.css";
+
+@theme {
+  /* ── Color (Blade contract) ─────────────────────────────────────── */
+  --color-primary: #1364f1;
+  --color-primary-hover: #0e54cd;
+  --color-primary-tint: #eaf1fe; /* active nav / 9% tint bg */
+  --color-primary-border: #d4e3fd; /* focused / disabled borders */
+
+  --color-canvas: #f7f7f7;
+  --color-surface: #ffffff;
+  --color-border-subtle: #dee1e3;
+  --color-border-normal: #c8cdd0;
+  --color-border-hover: #b0b6ba;
+
+  --color-text-normal: #050505;
+  --color-text-subtle: #292f32;
+  --color-text-muted: #616d75;
+  --color-text-disabled: #c3c5c7;
+
+  --color-row-hover: #fafbfb;
+  --color-row-hover-strong: #f5f6f7;
+
+  /* Status pills (bg / text / solid) */
+  --color-positive-bg: #e8f5ee;
+  --color-positive-text: #00753b;
+  --color-positive-solid: #008f47;
+  --color-negative-bg: #fbebea;
+  --color-negative-text: #d01e11;
+  --color-negative-solid: #d01e11;
+  --color-notice-bg: #fcf0e8;
+  --color-notice-text: #c75300;
+  --color-notice-solid: #e05e00;
+  --color-info-bg: #e8f5fb;
+  --color-info-text: #0070a8;
+  --color-info-solid: #008bd1;
+  --color-neutral-bg: #eeefef;
+  --color-neutral-text: #292f32;
+
+  /* Purple is DATA-VIZ ONLY — never primary actions, never status. */
+  --color-viz-purple: #8f62f9;
+  --color-viz-purple-tint: #f1e5ff;
+
+  /* ── Typography ─────────────────────────────────────────────────── */
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "TASA Orbiter", "Inter", ui-sans-serif, sans-serif;
+  --font-mono: "Menlo", "SF Mono", "Roboto Mono", ui-monospace, monospace;
+
+  /* Type scale beyond Tailwind's built-ins: hero metric 32/40 (Blade). */
+  --text-hero: 32px;
+  --text-hero--line-height: 40px;
+
+  /* ── Spacing: the Blade px ramp 2/4/8/12/16/20/24/32/40/48/56 ──── */
+  /* Base 1px makes Tailwind numeric utilities literal Blade pixels:
+     p-2 = 2px … p-56 = 56px (dense-over-airy law). */
+  --spacing: 1px;
+  --spacing-sidebar: 256px; /* fixed left sidebar */
+  --spacing-content-max: 1200px; /* content max-width */
+  --spacing-control-xs: 28px; /* button heights */
+  --spacing-control-sm: 32px;
+  --spacing-control-md: 36px;
+  --spacing-control-lg: 48px;
+
+  /* ── Shape ──────────────────────────────────────────────────────── */
+  --radius-button: 8px;
+  --radius-card: 12px;
+  --radius-pill: 9999px;
+
+  /* Near-flat elevation only — no heavy shadows, ever. */
+  --shadow-low: 0 2px 4px 0 hsla(200, 10%, 18%, 0.06);
+  --shadow-high: 0 8px 24px -4px hsla(200, 10%, 18%, 0.06);
+}
+
+/* The same contract as raw custom properties, for non-Tailwind
+   consumers (and so the values are greppable in any built bundle). */
+:root {
+  --v-primary: #1364f1;
+  --v-primary-hover: #0e54cd;
+  --v-primary-tint: #eaf1fe;
+  --v-primary-border: #d4e3fd;
+  --v-canvas: #f7f7f7;
+  --v-surface: #ffffff;
+  --v-border-subtle: #dee1e3;
+  --v-border-normal: #c8cdd0;
+  --v-border-hover: #b0b6ba;
+  --v-text-normal: #050505;
+  --v-text-subtle: #292f32;
+  --v-text-muted: #616d75;
+  --v-text-disabled: #c3c5c7;
+  --v-row-hover: #fafbfb;
+  --v-row-hover-strong: #f5f6f7;
+  --v-positive-bg: #e8f5ee;
+  --v-positive-text: #00753b;
+  --v-positive-solid: #008f47;
+  --v-negative-bg: #fbebea;
+  --v-negative-text: #d01e11;
+  --v-notice-bg: #fcf0e8;
+  --v-notice-text: #c75300;
+  --v-notice-solid: #e05e00;
+  --v-info-bg: #e8f5fb;
+  --v-info-text: #0070a8;
+  --v-info-solid: #008bd1;
+  --v-neutral-bg: #eeefef;
+  --v-neutral-text: #292f32;
+  --v-viz-purple: #8f62f9;
+  --v-viz-purple-tint: #f1e5ff;
+
+  --v-font-ui: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --v-font-heading: "TASA Orbiter", "Inter", ui-sans-serif, sans-serif;
+  --v-font-mono: "Menlo", "SF Mono", "Roboto Mono", ui-monospace, monospace;
+
+  /* Type scale (Blade): body 14/20, table header 12, page title 24,
+     hero metric 32–40. */
+  --v-text-body-size: 14px;
+  --v-text-body-line: 20px;
+  --v-text-table-header-size: 12px;
+  --v-text-title-size: 24px;
+  --v-text-hero-size: 36px;
+
+  /* Spacing ramp (px) */
+  --v-space-2: 2px;
+  --v-space-4: 4px;
+  --v-space-8: 8px;
+  --v-space-12: 12px;
+  --v-space-16: 16px;
+  --v-space-20: 20px;
+  --v-space-24: 24px;
+  --v-space-32: 32px;
+  --v-space-40: 40px;
+  --v-space-48: 48px;
+  --v-space-56: 56px;
+
+  --v-radius-button: 8px;
+  --v-radius-card: 12px;
+  --v-radius-pill: 9999px;
+
+  --v-shadow-low: 0 2px 4px 0 hsla(200, 10%, 18%, 0.06);
+  --v-shadow-high: 0 8px 24px -4px hsla(200, 10%, 18%, 0.06);
+
+  --v-control-h-xs: 28px;
+  --v-control-h-sm: 32px;
+  --v-control-h-md: 36px;
+  --v-control-h-lg: 48px;
+
+  --v-sidebar-w: 256px;
+  --v-content-max: 1200px;
+}
+
+/* Money/metric numerals: tabular so amounts align in every table. */
+@utility tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Letter-spacing 0 for UI text (Blade law) — enforce globally. */
+body {
+  letter-spacing: 0;
+}
