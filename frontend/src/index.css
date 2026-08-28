@@ -23,6 +23,9 @@
   --color-primary-tint: #eaf1fe; /* active nav / 9% tint bg */
   --color-primary-border: #d4e3fd; /* focused / disabled borders */
 
+  /* Focus-visible ring: same azure family as the primary (light). */
+  --color-ring: #1364f1;
+
   --color-canvas: #f7f7f7;
   --color-surface: #ffffff;
   --color-border-subtle: #dee1e3;
@@ -94,6 +97,7 @@
   --v-primary-hover: #0e54cd;
   --v-primary-tint: #eaf1fe;
   --v-primary-border: #d4e3fd;
+  --v-ring: #1364f1;
   --v-canvas: #f7f7f7;
   --v-surface: #ffffff;
   --v-border-subtle: #dee1e3;
@@ -210,6 +214,10 @@
      alpha over surface — active nav keeps its "wash of primary" role */
   --color-primary-border: rgba(110, 163, 247, 0.4); /* focus borders */
 
+  /* Focus-visible ring: the dark lifted azure — reads as a clear halo
+     over both canvas (#0b0e14, 7.0:1) and surface (#141b26, 6.2:1). */
+  --color-ring: #93bcf9;
+
   /* Status: washes stay low-alpha fills of the light solid hues; text
      steps up to AA on the composited wash over EVERY surface (positive
      9.4 / negative 7.2 / notice 7.9 / info 8.7 on surface, all ≥6.1 on
@@ -245,6 +253,7 @@
   --v-primary-hover: #93bcf9;
   --v-primary-tint: rgba(19, 100, 241, 0.16);
   --v-primary-border: rgba(110, 163, 247, 0.4);
+  --v-ring: #93bcf9;
   --v-canvas: #0b0e14;
   --v-surface: #141b26;
   --v-border-subtle: rgba(255, 255, 255, 0.1);

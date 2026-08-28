@@ -14,7 +14,10 @@ import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { AgentTimeline } from "@/components/AgentTimeline";
+import { CardSkeleton, Skeleton } from "@/components/Skeleton";
 import { EpisodeStatePill, StatusPill } from "@/components/StatusPill";
+import { ErrorState } from "@/components/ErrorState";
+import { useDelayedFlag } from "@/hooks/useDelayedFlag";
 import {
   ApiError,
   postDecide,
@@ -261,23 +264,55 @@ function ApprovalCard({
 export function EpisodeDetailPage() {
   const { id } = useParams<{ id: string }>();
   const detail = useApi<EpisodeDetailResponse>(`/api/episodes/${id ?? ""}`);
+  const showSkeleton = useDelayedFlag(
+    detail.data === null && detail.error === null,
+  );
 
   return (
     <div className="flex flex-col gap-24">
-      <Link to="/episodes" className="text-sm font-medium text-primary hover:text-primary-hover">
+      <Link
+        to="/episodes"
+        className="text-sm font-medium text-primary hover:text-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
         ← All episodes
       </Link>
 
       {detail.error !== null ? (
-        <div className="flex flex-col gap-8 rounded-card border border-border-subtle bg-surface p-24 shadow-low">
-          <p className="font-display text-lg font-semibold text-text-normal">Episode not found</p>
-          <p className="text-sm text-text-muted">
-            No episode with id <span className="break-all font-mono">{id}</span> — the server
-            said: {detail.error}
-          </p>
-        </div>
+        detail.error === "no such episode" || detail.error.startsWith("404") ? (
+          <div className="flex flex-col gap-8 rounded-card border border-border-subtle bg-surface p-24 shadow-low">
+            <p className="font-display text-lg font-semibold text-text-normal">Episode not found</p>
+            <p className="text-sm text-text-muted">
+              No episode with id <span className="break-all font-mono">{id}</span> — the server
+              said: {detail.error}
+            </p>
+          </div>
+        ) : (
+          <ErrorState
+            title="Couldn't load the episode"
+            message="The episode detail failed to load. The API may be restarting — retry."
+            onRetry={detail.refetch}
+          />
+        )
       ) : detail.data === null ? (
-        <p className="text-sm text-text-muted">Loading episode…</p>
+        showSkeleton ? (
+          <div className="flex flex-col gap-24">
+            <CardSkeleton label="Loading episode header" className="p-24" />
+            <div className="flex flex-col gap-16">
+              <Skeleton width={120} height={12} />
+              <div className="flex flex-col gap-16 rounded-card border border-border-subtle bg-surface p-24">
+                {Array.from({ length: 3 }, (_, i) => (
+                  <div key={i} className="flex items-center gap-16">
+                    <Skeleton width={32} height={32} className="rounded-pill" />
+                    <div className="flex flex-1 flex-col gap-8">
+                      <Skeleton height={12} width="30%" />
+                      <Skeleton height={10} width="55%" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : null
       ) : (
         <>
           <HeaderCard episode={detail.data.episode} />

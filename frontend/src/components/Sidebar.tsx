@@ -80,6 +80,7 @@ export function Sidebar({ mode, onKilled }: { mode: Mode | null; onKilled: () =>
                     cn(
                       "relative flex h-control-md items-center gap-8 rounded-button px-16 text-sm font-medium",
                       "hover:bg-row-hover-strong",
+                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                       isActive ? "bg-primary-tint text-primary" : "text-text-subtle",
                     )
                   }

@@ -11,7 +11,11 @@
 import { useState } from "react";
 import { Check, Loader2, Play, X } from "lucide-react";
 
+import { EmptyState } from "@/components/EmptyState";
+import { ErrorState } from "@/components/ErrorState";
 import { StatusPill } from "@/components/StatusPill";
+import { CardSkeleton } from "@/components/Skeleton";
+import { useDelayedFlag } from "@/hooks/useDelayedFlag";
 import { runDrill, useApi, type DrillRunResult, type DrillsResponse } from "@/lib/api";
 import { timeAgo } from "@/lib/format";
 
@@ -50,6 +54,9 @@ export function DrillsPage() {
   const [runningId, setRunningId] = useState<string | null>(null);
   const [results, setResults] = useState<Record<string, DrillRunResult>>({});
   const [error, setError] = useState<string | null>(null);
+  const showSkeleton = useDelayedFlag(
+    drills.data === null && drills.error === null,
+  );
 
   async function run(drillId: string) {
     setRunningId(drillId);
@@ -66,13 +73,36 @@ export function DrillsPage() {
 
   if (drills.error !== null) {
     return (
-      <div role="alert" className="rounded-card bg-negative-bg p-16 text-sm font-medium text-negative-text">
-        {drills.error}
-      </div>
+      <ErrorState
+        title="Couldn't load the drills"
+        message="The drill catalog failed to load. The API may be restarting — retry."
+        onRetry={drills.refetch}
+      />
     );
   }
   if (drills.data === null) {
-    return <p className="text-sm text-text-muted">Loading drills…</p>;
+    return showSkeleton ? (
+      <div className="flex flex-col gap-16">
+        {Array.from({ length: 3 }, (_, i) => (
+          <CardSkeleton key={i} label="Loading drill card" className="p-24" />
+        ))}
+      </div>
+    ) : null;
+  }
+
+  if (drills.data.drills.length === 0) {
+    return (
+      <EmptyState
+        icon={
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="9" />
+            <path d="M10 9.5v5M14 9.5v5M9.5 10h5M9.5 14h5" />
+          </svg>
+        }
+        title="No drills registered"
+        explanation="The drill catalog is empty — this server process registered no recovery drills."
+      />
+    );
   }
 
   return (
@@ -104,7 +134,7 @@ export function DrillsPage() {
                     type="button"
                     onClick={() => void run(drill.drill_id)}
                     disabled={runningId !== null}
-                    className="inline-flex h-control-sm items-center gap-8 rounded-button bg-primary px-16 text-sm font-medium text-surface hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex h-control-sm items-center gap-8 rounded-button bg-primary px-16 text-sm font-medium text-surface hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <Play className="h-16 w-16" aria-hidden />
                     Run drill

@@ -30,7 +30,7 @@ export default function App() {
   const [paletteOpen, setPaletteOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-canvas font-sans text-text-normal">
+    <div data-testid="app-ready" className="min-h-screen bg-canvas font-sans text-text-normal">
       <Sidebar mode={currentMode} onKilled={mode.refetch} />
       <div className="pl-sidebar max-lg:pl-0">
         <AppBar mode={currentMode} onOpenPalette={() => setPaletteOpen(true)} />

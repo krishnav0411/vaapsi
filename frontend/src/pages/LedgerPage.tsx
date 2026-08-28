@@ -15,7 +15,12 @@ import { Fragment, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Check, ChevronDown, ShieldAlert, X } from "lucide-react";
 
+import { EmptyState } from "@/components/EmptyState";
+import { ErrorState } from "@/components/ErrorState";
+import { Provenance } from "@/components/Provenance";
 import { StatusPill } from "@/components/StatusPill";
+import { TableSkeleton } from "@/components/Skeleton";
+import { useDelayedFlag } from "@/hooks/useDelayedFlag";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -399,6 +404,7 @@ export function LedgerPage() {
   const rows = list.data?.rows ?? [];
   const total = list.data?.total ?? 0;
   const pageEnd = page * PAGE_SIZE + rows.length;
+  const showSkeleton = useDelayedFlag(list.data === null && list.error === null);
 
   return (
     <div className="flex flex-col gap-24">
@@ -414,9 +420,15 @@ export function LedgerPage() {
           ) : verify.data === null ? (
             <span className="text-sm text-text-muted">checking chain…</span>
           ) : verify.data.valid ? (
-            <StatusPill tone="positive" dot>
-              {`chain valid · ${verify.data.rows} rows`}
-            </StatusPill>
+            <span className="flex items-center gap-4">
+              <StatusPill tone="positive" dot>
+                {`chain valid · ${verify.data.rows} rows`}
+              </StatusPill>
+              <Provenance>
+                sha256 chain over all rows; verify recomputes every link and names the
+                first broken one
+              </Provenance>
+            </span>
           ) : (
             <StatusPill tone="negative" dot>
               {`chain broken @ seq ${verify.data.broken_seq ?? "?"}`}
@@ -433,7 +445,7 @@ export function LedgerPage() {
             type="button"
             onClick={() => void runVerify()}
             disabled={check !== null || list.data === null}
-            className="h-control-md rounded-button border border-primary px-20 text-sm font-medium text-primary hover:bg-primary-tint disabled:cursor-not-allowed disabled:opacity-50"
+            className="h-control-md rounded-button border border-primary px-20 text-sm font-medium text-primary hover:bg-primary-tint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
           >
             {check !== null ? "Verifying…" : "Verify chain"}
           </button>
@@ -443,11 +455,26 @@ export function LedgerPage() {
       <TamperDemoCard />
 
       {list.error !== null ? (
-        <div role="alert" className="rounded-card bg-negative-bg p-16 text-sm font-medium text-negative-text">
-          {list.error}
-        </div>
+        <ErrorState
+          title="Couldn't load the ledger"
+          message="The ledger rows failed to load. The API may be restarting — retry."
+          onRetry={list.refetch}
+        />
       ) : list.data === null ? (
-        <p className="text-sm text-text-muted">Loading ledger…</p>
+        showSkeleton ? (
+          <TableSkeleton rows={8} cols={8} label="Loading ledger" />
+        ) : null
+      ) : rows.length === 0 ? (
+        <EmptyState
+          icon={
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+            </svg>
+          }
+          title="No ledger rows yet"
+          explanation="The audit chain starts when the first halt is recorded — every agent action appends one verified row."
+        />
       ) : (
         <>
           <div className="overflow-hidden rounded-card border border-border-subtle bg-surface shadow-low">
@@ -474,9 +501,17 @@ export function LedgerPage() {
                     <Fragment key={row.seq}>
                       <tr
                         onClick={() => setExpandedSeq(expanded ? null : row.seq)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            setExpandedSeq(expanded ? null : row.seq);
+                          }
+                        }}
+                        tabIndex={0}
                         aria-expanded={expanded}
                         className={cn(
                           "cursor-pointer border-b border-border-subtle hover:bg-row-hover",
+                          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
                           expanded && "bg-row-hover",
                           broken && "bg-negative-bg",
                         )}
@@ -506,7 +541,7 @@ export function LedgerPage() {
                         <td className="px-12 py-8 font-mono text-xs text-text-muted" title={row.subscription_id}>
                           {row.subscription_id}
                         </td>
-                        <td className="px-12 py-8 text-xs text-text-muted" title={row.ts_utc}>
+                        <td className="tnum px-12 py-8 text-xs text-text-muted" title={row.ts_utc}>
                           {timeAgo(row.ts_utc)}
                         </td>
                         <td className="px-12 py-8 font-mono text-xs text-text-subtle">

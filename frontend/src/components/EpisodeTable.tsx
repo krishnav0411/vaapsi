@@ -98,6 +98,7 @@ export function EpisodeTable({
                       onClick={() => onSort(sortKey)}
                       className={cn(
                         "inline-flex items-center gap-4 uppercase hover:text-text-normal",
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                         active && "text-primary",
                       )}
                     >
@@ -144,7 +145,7 @@ export function EpisodeTable({
                   )}
                 </span>
               </td>
-              <td className="px-12 py-8 text-sm text-text-muted" title={episode.halt_ts_utc}>
+              <td className="tnum px-12 py-8 text-sm text-text-muted" title={episode.halt_ts_utc}>
                 {timeAgo(episode.halt_ts_utc)}
               </td>
               <td className="px-12 py-8 text-right">

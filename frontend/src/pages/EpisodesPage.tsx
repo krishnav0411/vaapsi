@@ -11,11 +11,15 @@
 
 import { useMemo, useState } from "react";
 
+import { EmptyState } from "@/components/EmptyState";
+import { ErrorState } from "@/components/ErrorState";
 import {
   EpisodeTable,
   type EpisodeSort,
   type EpisodeSortKey,
 } from "@/components/EpisodeTable";
+import { TableSkeleton } from "@/components/Skeleton";
+import { useDelayedFlag } from "@/hooks/useDelayedFlag";
 import {
   useApi,
   type Cohort,
@@ -145,6 +149,10 @@ export function EpisodesPage() {
 
   const sorted = useMemo(() => sortEpisodes(filtered, sort), [filtered, sort]);
 
+  const showSkeleton = useDelayedFlag(
+    episodes.data === null && episodes.error === null,
+  );
+
   function onSort(key: EpisodeSortKey) {
     setSort((prev) =>
       prev.key === key
@@ -213,14 +221,27 @@ export function EpisodesPage() {
       </div>
 
       {episodes.error !== null ? (
-        <div
-          role="alert"
-          className="rounded-card bg-negative-bg p-16 text-sm font-medium text-negative-text"
-        >
-          {episodes.error}
-        </div>
+        <ErrorState
+          title="Couldn't load the episodes"
+          message="The episode list failed to load. The API may be restarting — retry."
+          onRetry={episodes.refetch}
+        />
       ) : episodes.data === null ? (
-        <p className="text-sm text-text-muted">Loading episodes…</p>
+        showSkeleton ? (
+          <TableSkeleton rows={8} cols={6} label="Loading episodes" />
+        ) : null
+      ) : episodes.data.length === 0 ? (
+        <EmptyState
+          icon={
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+              <line x1="4" y1="6" x2="20" y2="6" />
+              <line x1="4" y1="12" x2="16" y2="12" />
+              <line x1="4" y1="18" x2="12" y2="18" />
+            </svg>
+          }
+          title="No episodes yet"
+          explanation="Episodes begin at the first failed payment — the audit chain starts with the first halt."
+        />
       ) : (
         <>
           <p className="tnum text-sm text-text-muted">
@@ -229,11 +250,16 @@ export function EpisodesPage() {
               <span> of {episodes.data.length} total</span>
             )}
           </p>
-          {episodes.data.length > 0 && sorted.length === 0 ? (
-            <p className="rounded-card border border-border-subtle bg-surface p-24 text-sm text-text-muted">
-              No episodes match the current filters — clear a chip or switch cohort to widen
-              the view.
-            </p>
+          {sorted.length === 0 ? (
+            <EmptyState
+              icon={
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 5h18l-7 8v5l-4 2v-7L3 5z" />
+                </svg>
+              }
+              title="No episodes match this filter"
+              explanation="Clear a state chip or switch cohort to widen the view."
+            />
           ) : (
             <EpisodeTable episodes={sorted} sort={sort} onSort={onSort} />
           )}

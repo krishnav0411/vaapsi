@@ -216,3 +216,9 @@ class TestD8SurfacesShipped:
 
     def test_dist_js_contains_approvals_empty_state_copy(self):
         assert "Nothing awaiting judgment" in self.built_js()
+
+    def test_dist_js_contains_app_ready_marker(self):
+        """The app shell carries a data-testid="app-ready" on its root
+        div (an ops smoke-test hook). dist is a JS bundle, so the marker
+        surfaces as the string literal "app-ready" in the built bundle."""
+        assert "app-ready" in self.built_js()

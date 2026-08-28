@@ -13,7 +13,11 @@
 import { useEffect, useState } from "react";
 import { CheckCircle2, X } from "lucide-react";
 
+import { EmptyState } from "@/components/EmptyState";
+import { ErrorState } from "@/components/ErrorState";
 import { EpisodeStatePill, StatusPill } from "@/components/StatusPill";
+import { CardSkeleton } from "@/components/Skeleton";
+import { useDelayedFlag } from "@/hooks/useDelayedFlag";
 import {
   ApiError,
   postDecide,
@@ -59,6 +63,10 @@ function ApprovalDetail({
 
   async function decide(decision: "approve" | "reject") {
     if (busy !== null) return;
+    if (decision === "reject" && note.trim() === "") {
+      setError("A typed reason is required to reject — write why, then reject again. The reason is recorded in the ledger.");
+      return;
+    }
     setBusy(decision);
     setError(null);
     try {
@@ -115,7 +123,7 @@ function ApprovalDetail({
             type="button"
             onClick={onClose}
             aria-label="Close approval detail"
-            className="flex h-control-sm w-control-sm items-center justify-center rounded-button border border-border-normal text-text-subtle hover:border-border-hover"
+            className="flex h-control-sm w-control-sm items-center justify-center rounded-button border border-border-normal text-text-subtle hover:border-border-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <X className="h-16 w-16" aria-hidden />
           </button>
@@ -150,7 +158,7 @@ function ApprovalDetail({
           type="button"
           onClick={onClose}
           aria-label="Close approval detail"
-          className="flex h-control-sm w-control-sm items-center justify-center rounded-button border border-border-normal text-text-subtle hover:border-border-hover"
+          className="flex h-control-sm w-control-sm items-center justify-center rounded-button border border-border-normal text-text-subtle hover:border-border-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <X className="h-16 w-16" aria-hidden />
         </button>
@@ -215,16 +223,16 @@ function ApprovalDetail({
           type="button"
           disabled={busy !== null}
           onClick={() => void decide("approve")}
-          className="h-control-md rounded-button bg-primary px-20 text-sm font-medium text-surface hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
+          className="h-control-md rounded-button bg-primary px-20 text-sm font-medium text-surface hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
         >
           {busy === "approve" ? "Recording…" : "Approve"}
         </button>
         <button
           type="button"
-          disabled={busy !== null || rejectDisabled}
+          disabled={busy !== null}
           onClick={() => void decide("reject")}
-          title={rejectDisabled ? "a reason is required to reject" : undefined}
-          className="h-control-md rounded-button border border-negative-solid bg-surface px-20 text-sm font-medium text-negative-text hover:bg-negative-bg disabled:cursor-not-allowed disabled:opacity-50"
+          title={note.trim() === "" ? "a reason is required to reject" : undefined}
+          className="h-control-md rounded-button border border-negative-solid bg-surface px-20 text-sm font-medium text-negative-text hover:bg-negative-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
         >
           {busy === "reject" ? "Recording…" : "Reject"}
         </button>
@@ -256,24 +264,43 @@ export function ApprovalsPage() {
   const pending = useApi<ApprovalsPendingResponse>("/api/approvals/pending");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState<string | null>(null);
+  const showSkeleton = useDelayedFlag(
+    pending.data === null && pending.error === null,
+  );
 
-  if (pending.error !== null) return <ErrorNote message={pending.error} />;
+  if (pending.error !== null) {
+    return (
+      <ErrorState
+        title="Couldn't load the approvals queue"
+        message="The pending approvals failed to load. The API may be restarting — retry."
+        onRetry={pending.refetch}
+      />
+    );
+  }
   if (pending.data === null) {
-    return <p className="text-sm text-text-muted">Loading approvals…</p>;
+    return showSkeleton ? (
+      <div className="grid gap-16 lg:grid-cols-2">
+        {Array.from({ length: 2 }, (_, i) => (
+          <CardSkeleton key={i} label="Loading approval card" className="p-24" />
+        ))}
+      </div>
+    ) : null;
   }
   const approvals = pending.data.approvals;
 
   if (approvals.length === 0) {
     return (
-      <div className="flex flex-col items-center gap-8 rounded-card border border-border-subtle bg-surface p-56 text-center shadow-low">
-        <p className="font-display text-lg font-semibold text-text-normal">
-          Nothing awaiting judgment
-        </p>
-        <p className="max-w-480 text-sm text-text-muted">
-          Episodes land here only when policy gates their outreach — a tier-3 escalation or an
-          amount above the human-gate threshold. Nothing is gated right now.
-        </p>
-      </div>
+      <EmptyState
+        icon={
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="5" y="4" width="14" height="17" rx="2" />
+            <path d="M9 4.5V3h6v1.5" />
+            <path d="M9 11l2 2 4-4" />
+          </svg>
+        }
+        title="Nothing awaiting judgment"
+        explanation="Episodes land here only when policy gates their outreach — a tier-3 escalation or an amount above the human-gate threshold. Nothing is gated right now."
+      />
     );
   }
 
@@ -296,6 +323,7 @@ export function ApprovalsPage() {
             }}
             className={cn(
               "flex flex-col gap-8 rounded-card border p-16 text-left shadow-low",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
               selectedId === approval.id
                 ? "border-primary-border bg-primary-tint"
                 : "border-border-subtle bg-surface hover:border-border-hover",

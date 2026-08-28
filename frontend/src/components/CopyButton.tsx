@@ -23,9 +23,10 @@ export function CopyButton({ value, label, className }: { value: string; label?:
           // Clipboard unavailable — the value stays fully visible text.
         }
       }}
+      aria-label={copied ? "Copied to clipboard" : (label ?? `Copy ${value}`)}
       title={label ?? `Copy ${value}`}
       className={cn(
-        "shrink-0 rounded-button border border-border-normal px-8 py-2 text-xs font-medium text-text-subtle hover:border-border-hover hover:text-text-normal",
+        "shrink-0 rounded-button border border-border-normal px-8 py-2 text-xs font-medium text-text-subtle hover:border-border-hover hover:text-text-normal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         className,
       )}
     >

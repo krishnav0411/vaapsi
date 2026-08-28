@@ -343,7 +343,7 @@ export function CommandPalette({
             }}
             placeholder="Search commands and episodes…"
             aria-label="Search commands and episodes"
-            className="h-control-md w-full bg-surface px-16 text-sm text-text-normal outline-none placeholder:text-text-disabled"
+            className="h-control-md w-full bg-surface px-16 text-sm text-text-normal outline-none placeholder:text-text-disabled focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
           />
         </div>
         <div className="max-h-[50vh] overflow-y-auto p-8">
@@ -371,6 +371,7 @@ export function CommandPalette({
                       onClick={() => run(item)}
                       className={cn(
                         "flex w-full items-center gap-12 rounded-button px-8 py-8 text-left",
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                         active ? "bg-primary-tint" : "hover:bg-row-hover",
                       )}
                     >

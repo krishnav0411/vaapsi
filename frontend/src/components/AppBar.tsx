@@ -28,6 +28,17 @@ function pageTitle(pathname: string): string {
   return "Overview";
 }
 
+function humanFreshnessLabel(
+  status: ReturnType<typeof useFreshness>["status"],
+  secondsAgo: number | null,
+): string {
+  if (secondsAgo === null || status === "unknown") return "data freshness unknown";
+  const last = `last update ${timeAgo(new Date(Date.now() - secondsAgo * 1000).toISOString())}`;
+  if (status === "fresh") return `data fresh — ${last}`;
+  if (status === "aging") return `data aging — ${last}`;
+  return `data stale — ${last}`;
+}
+
 function FreshnessChip() {
   const { lastSuccessMs, secondsAgo, status } = useFreshness();
   const dotClass =
@@ -48,12 +59,11 @@ function FreshnessChip() {
           updated {timeAgo(new Date(lastSuccessMs ?? 0).toISOString())}
         </span>
       )}
-      <span aria-hidden className={cn("h-8 w-8 shrink-0 rounded-pill", dotClass)} />
-      <span className="sr-only">
-        {secondsAgo === null
-          ? "data freshness unknown"
-          : `data ${status}: last success ${secondsAgo} seconds ago`}
-      </span>
+      <span
+        role="img"
+        aria-label={humanFreshnessLabel(status, secondsAgo)}
+        className={cn("h-8 w-8 shrink-0 rounded-pill", dotClass)}
+      />
     </span>
   );
 }
@@ -65,7 +75,7 @@ function PaletteButton({ onOpen }: { onOpen: () => void }) {
       aria-label="Open command palette"
       title="Command palette (⌘K / Ctrl+K)"
       onClick={onOpen}
-      className="hidden h-control-sm items-center rounded-button border border-border-normal px-8 font-mono text-xs text-text-subtle hover:border-border-hover hover:bg-row-hover sm:flex"
+      className="hidden h-control-sm items-center rounded-button border border-border-normal px-8 font-mono text-xs text-text-subtle hover:border-border-hover hover:bg-row-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:flex"
     >
       ⌘K
     </button>
