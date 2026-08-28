@@ -140,3 +140,12 @@ EXPERIMENT.md  the cohort design, written before any data
 Test mode only, no real money. Outreach is logged rather than delivered,
 since test mode doesn't send real SMS or email. The agent only collects what
 a merchant is already owed and it does nothing else.
+
+## CI
+
+![](https://github.com/krishnav0411/vaapsi/actions/workflows/ci.yml/badge.svg)
+
+Every push and pull request runs three jobs: the Python suite (ruff +
+pytest), the frontend (vitest + a production build), and the drift-guard
+that checks the published evaluation numbers against the committed JSON.
+No secrets are used — everything runs offline against seeded stores.

@@ -104,6 +104,13 @@ export interface Metric {
 
 export interface ModeResponse {
   mode: Mode;
+  /**
+   * Public-demo flag (VAAPSI_PUBLIC_DEMO) from GET /api/mode — the UI
+   * badges demo mode and disables write buttons off this field. Optional
+   * because POST /api/kill answers with {mode} only; absence reads as
+   * "not a demo". The flag is read-only here: the server enforces it.
+   */
+  demo?: boolean;
 }
 
 export class ApiError extends Error {

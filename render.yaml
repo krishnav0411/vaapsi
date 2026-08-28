@@ -1,0 +1,20 @@
+# Render deploy config for the Vaapsi public demo (Phase D).
+# Read-only demo: VAAPSI_PUBLIC_DEMO=1 makes the boot fail-closed (no
+# credentials allowed), skips the webhook receiver, 404s every write
+# route, and seeds a sanitized store on cold start. No secrets here —
+# a demo deployment must not have any.
+services:
+  - type: web
+    name: vaapsi
+    runtime: python
+    plan: free
+    healthCheckPath: /health
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: APP_ENV
+        value: production
+      - key: VAAPSI_PUBLIC_DEMO
+        value: "1"

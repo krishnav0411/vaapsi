@@ -27,6 +27,7 @@ import { OverviewPage } from "@/pages/OverviewPage";
 export default function App() {
   const mode = useApi<ModeResponse>("/api/mode");
   const currentMode = mode.data?.mode ?? null;
+  const demoMode = mode.data?.demo === true;
   const [paletteOpen, setPaletteOpen] = useState(false);
 
   return (
@@ -34,7 +35,7 @@ export default function App() {
       <Sidebar mode={currentMode} onKilled={mode.refetch} />
       <div className="pl-sidebar max-lg:pl-0">
         <AppBar mode={currentMode} onOpenPalette={() => setPaletteOpen(true)} />
-        <ModeBanner mode={currentMode} />
+        <ModeBanner mode={currentMode} demo={demoMode} />
         <main className="mx-auto w-full max-w-content-max px-48 py-32 max-lg:px-24">
           <Routes>
             <Route path="/" element={<OverviewPage />} />

@@ -43,6 +43,7 @@ from app.dashboard.routes import (
     engine_mode,
 )
 from app.db import get_conn
+from app.demo_mode import is_demo_mode
 from app.gates import human_gate
 from app.policy.engine import HUMAN_GATE_THRESHOLD_PAISE
 from app.policy.merchant import (
@@ -178,10 +179,13 @@ def metrics_all() -> list[dict[str, Any]]:
 
 
 @api_router.get("/mode")
-def mode() -> dict[str, str]:
-    """Current engine mode for the banner: NORMAL | DEGRADED | KILLED."""
+def mode() -> dict[str, Any]:
+    """Current engine mode for the banner: NORMAL | DEGRADED | KILLED,
+    plus the public-demo flag (VAAPSI_PUBLIC_DEMO) — the UI badges demo
+    mode with a read-only chip and disables the write buttons off this
+    field (the frontend only ever READS the flag; the server enforces it)."""
     with get_conn() as conn:
-        return {"mode": engine_mode(conn)}
+        return {"mode": engine_mode(conn), "demo": is_demo_mode(get_settings())}
 
 
 @api_router.get("/policy")

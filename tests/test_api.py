@@ -297,7 +297,7 @@ class TestMetricsAndMode:
 
     def test_mode_endpoint(self, client):
         assert client.get("/api/mode").status_code == 200
-        assert client.get("/api/mode").json() == {"mode": "NORMAL"}
+        assert client.get("/api/mode").json() == {"mode": "NORMAL", "demo": False}
 
 
 class TestReadOnlyGuarantee:
@@ -321,7 +321,7 @@ class TestKillEndpoint:
         r = client.post("/api/kill", json={"confirm": "KILL"})
         assert r.status_code == 200
         assert r.json() == {"mode": "KILLED"}
-        assert client.get("/api/mode").json() == {"mode": "KILLED"}
+        assert client.get("/api/mode").json() == {"mode": "KILLED", "demo": False}
         assert get_settings().kill_switch is True
         env_note = (tmp_path / "env-note").read_text(encoding="utf-8")
         assert "VAAPSI_KILL_SWITCH=true" in env_note  # same killswitch module
@@ -330,7 +330,7 @@ class TestKillEndpoint:
         r = client.post("/api/kill", json={"confirm": "resume"})
         assert r.status_code == 400
         assert get_settings().kill_switch is False
-        assert client.get("/api/mode").json() == {"mode": "NORMAL"}
+        assert client.get("/api/mode").json() == {"mode": "NORMAL", "demo": False}
         assert not (tmp_path / "env-note").exists()
 
     def test_kill_is_idempotent(self, client, tmp_path):

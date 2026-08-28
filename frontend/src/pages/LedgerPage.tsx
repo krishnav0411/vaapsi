@@ -40,6 +40,7 @@ import {
   type LedgerListResponse,
   type LedgerRowDetail,
   type LedgerVerifyResponse,
+  type ModeResponse,
   type TamperDemoResponse,
 } from "@/lib/api";
 import { timeAgo } from "@/lib/format";
@@ -221,7 +222,7 @@ function CopyButtonSmall({ value }: { value: string }) {
 }
 
 /** The "Prove it" card: the tamper demo, run on a copy, never the live store. */
-function TamperDemoCard() {
+function TamperDemoCard({ demoMode }: { demoMode: boolean }) {
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<TamperDemoResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -251,34 +252,42 @@ function TamperDemoCard() {
             the broken row. The live store is opened read-only and never written.
           </p>
         </div>
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <button
-              type="button"
-              disabled={running}
-              className="inline-flex h-control-md shrink-0 items-center gap-8 rounded-button bg-negative-solid px-20 text-sm font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <ShieldAlert className="h-16 w-16" aria-hidden />
-              {running ? "Running on the copy…" : "Run tamper demo"}
-            </button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Run the tamper demo?</AlertDialogTitle>
-              <AlertDialogDescription>
-                Vaapsi will copy the store, flip one recorded value on the copy, and
-                let the verifier name the broken row. The live store is never
-                written — the copy is deleted when the demo ends.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={(event) => { event.preventDefault(); void fire(); }}>
-                Run on a copy
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        {/* In public demo the button is dead and explains itself on hover
+            (the span carries the tooltip — disabled buttons drop pointer
+            events in some browsers). The server 404s this route anyway. */}
+        <span
+          title={demoMode ? "disabled in public demo" : undefined}
+          className="inline-flex shrink-0 cursor-not-allowed"
+        >
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <button
+                type="button"
+                disabled={running || demoMode}
+                className="inline-flex h-control-md shrink-0 items-center gap-8 rounded-button bg-negative-solid px-20 text-sm font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <ShieldAlert className="h-16 w-16" aria-hidden />
+                {running ? "Running on the copy…" : "Run tamper demo"}
+              </button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Run the tamper demo?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Vaapsi will copy the store, flip one recorded value on the copy, and
+                  let the verifier name the broken row. The live store is never
+                  written — the copy is deleted when the demo ends.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={(event) => { event.preventDefault(); void fire(); }}>
+                  Run on a copy
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </span>
       </div>
 
       {error !== null && (
@@ -358,6 +367,10 @@ export function LedgerPage() {
     `/api/ledger?limit=${PAGE_SIZE}&offset=${page * PAGE_SIZE}`,
   );
   const verify = useApi<LedgerVerifyResponse>("/api/ledger/verify");
+  // The demo flag comes from GET /api/mode (read-only consumption — the
+  // server does the enforcing); it only disables the write buttons here.
+  const modeInfo = useApi<ModeResponse>("/api/mode");
+  const demoMode = modeInfo.data?.demo === true;
   const [expandedSeq, setExpandedSeq] = useState<number | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const [check, setCheck] = useState<CheckAnimation | null>(null);
@@ -452,7 +465,7 @@ export function LedgerPage() {
         </div>
       </section>
 
-      <TamperDemoCard />
+      <TamperDemoCard demoMode={demoMode} />
 
       {list.error !== null ? (
         <ErrorState

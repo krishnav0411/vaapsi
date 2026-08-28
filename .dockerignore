@@ -1,0 +1,20 @@
+# Keep the build context small and secret-free: no credentials, no local
+# stores, no node_modules, no venvs in the image. data/ is excluded on
+# purpose — seed-on-boot must always start from a clean store.
+.git
+.gitignore
+.venv
+venv/
+__pycache__
+*.pyc
+*.pyo
+.env
+.env.*
+data/
+results/
+docs/
+node_modules/
+frontend/node_modules
+.pytest_cache
+.ruff_cache
+*.log

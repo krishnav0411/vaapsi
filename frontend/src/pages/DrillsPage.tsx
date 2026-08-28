@@ -16,7 +16,7 @@ import { ErrorState } from "@/components/ErrorState";
 import { StatusPill } from "@/components/StatusPill";
 import { CardSkeleton } from "@/components/Skeleton";
 import { useDelayedFlag } from "@/hooks/useDelayedFlag";
-import { runDrill, useApi, type DrillRunResult, type DrillsResponse } from "@/lib/api";
+import { runDrill, useApi, type DrillRunResult, type DrillsResponse, type ModeResponse } from "@/lib/api";
 import { timeAgo } from "@/lib/format";
 
 function ResultPanel({ result }: { result: DrillRunResult }) {
@@ -51,6 +51,10 @@ function ResultPanel({ result }: { result: DrillRunResult }) {
 
 export function DrillsPage() {
   const drills = useApi<DrillsResponse>("/api/drills");
+  // Public-demo flag from GET /api/mode (read-only): it only disables the
+  // run buttons — the server 404s the run route in demo mode regardless.
+  const modeInfo = useApi<ModeResponse>("/api/mode");
+  const demoMode = modeInfo.data?.demo === true;
   const [runningId, setRunningId] = useState<string | null>(null);
   const [results, setResults] = useState<Record<string, DrillRunResult>>({});
   const [error, setError] = useState<string | null>(null);
@@ -130,15 +134,23 @@ export function DrillsPage() {
                     running… (up to 30s)
                   </span>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={() => void run(drill.drill_id)}
-                    disabled={runningId !== null}
-                    className="inline-flex h-control-sm items-center gap-8 rounded-button bg-primary px-16 text-sm font-medium text-surface hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                  /* Demo deployments dead-button the run control and explain
+                     on hover (span carries the tooltip; disabled buttons drop
+                     pointer events in some browsers). Server 404s anyway. */
+                  <span
+                    title={demoMode ? "disabled in public demo" : undefined}
+                    className="inline-flex cursor-not-allowed"
                   >
-                    <Play className="h-16 w-16" aria-hidden />
-                    Run drill
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => void run(drill.drill_id)}
+                      disabled={runningId !== null || demoMode}
+                      className="inline-flex h-control-sm items-center gap-8 rounded-button bg-primary px-16 text-sm font-medium text-surface hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <Play className="h-16 w-16" aria-hidden />
+                      Run drill
+                    </button>
+                  </span>
                 )}
               </div>
 

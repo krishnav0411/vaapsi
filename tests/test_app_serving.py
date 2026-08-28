@@ -84,7 +84,7 @@ class TestNothingShadowed:
     def test_api_dashboard_health_still_answer(self, client):
         assert client.get("/api/overview").status_code == 200
         assert client.get("/api/episodes").status_code == 200
-        assert client.get("/api/mode").json() == {"mode": "NORMAL"}
+        assert client.get("/api/mode").json() == {"mode": "NORMAL", "demo": False}
         assert client.get("/dashboard").status_code == 200
         health = client.get("/health")
         assert health.status_code == 200
@@ -222,3 +222,9 @@ class TestD8SurfacesShipped:
         div (an ops smoke-test hook). dist is a JS bundle, so the marker
         surfaces as the string literal "app-ready" in the built bundle."""
         assert "app-ready" in self.built_js()
+
+    def test_dist_js_contains_public_demo_chip_copy(self):
+        """The Phase D public-demo chip ships in the bundle: when
+        /api/mode reports demo:true the shell badges itself "PUBLIC DEMO
+        — read only" (the string literal is the contract in a built bundle)."""
+        assert "PUBLIC DEMO — read only" in self.built_js()

@@ -10,13 +10,19 @@ import sqlite3
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, Response
+from fastapi import FastAPI, Request, Response
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.dashboard.api import api_router
 from app.dashboard.routes import router as dashboard_router
 from app.db import connect, get_conn, init_db
+from app.demo_mode import (
+    DEMO_BLOCKED_DETAIL,
+    assert_demo_safe,
+    is_demo_blocked,
+    is_demo_mode,
+)
 from app.ingest.receiver import root_webhook_handler
 from app.ingest.receiver import router as ingest_router
 from app.policy.merchant import ensure_default_row
@@ -25,6 +31,22 @@ from app.settings import get_settings
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    settings = get_settings()
+    # Public demo fail-closed guard, FIRST: a demo deployment that also
+    # carries real Razorpay/LLM credentials refuses to boot at all.
+    assert_demo_safe(settings)
+    # Seed-on-boot: a demo deployment starts from a fresh (ephemeral)
+    # store, so the sanitized demo seeder builds it before anything reads.
+    # An existing store boots as-is — restarts keep whatever the demo
+    # accumulated until the container's SQLite disappears with it.
+    if is_demo_mode(settings) and not settings.db_path.exists():
+        from scripts.seed_demo import seed_store
+
+        counts = seed_store(settings.db_path)
+        print(
+            "[vaapsi] public demo: seeded sanitized store at "
+            f"{settings.db_path} ({counts})"
+        )
     conn = connect()
     try:
         init_db(conn)
@@ -51,7 +73,14 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-app.include_router(ingest_router)
+# Public demo mode is read at import so a demo deployment never even
+# registers the webhook surface (no ingest endpoint exists to probe).
+# Everything else — the JSON API, the Jinja dashboard, the SPA — mounts
+# exactly as before; demo blocking happens per-request below.
+PUBLIC_DEMO = is_demo_mode(get_settings())
+
+if not PUBLIC_DEMO:
+    app.include_router(ingest_router)
 # D5 operations dashboard: server-rendered Jinja2, read-only over the same
 # SQLite store (its only write endpoints are the kill switch and the
 # human-gate decide buttons).
@@ -60,8 +89,29 @@ app.include_router(dashboard_router)
 # mount shadows routes and 500s path-param lookups; one router, one mount).
 app.include_router(api_router)
 # Tolerance route (see receiver.root_webhook_handler): accepts Razorpay
-# deliveries that were registered against the bare tunnel domain.
-app.add_api_route("/", root_webhook_handler, methods=["POST"], include_in_schema=False)
+# deliveries that were registered against the bare tunnel domain. Skipped
+# entirely in public demo — it is a webhook receiver, and a demo has none.
+if not PUBLIC_DEMO:
+    app.add_api_route(
+        "/", root_webhook_handler, methods=["POST"], include_in_schema=False
+    )
+
+
+@app.middleware("http")
+async def demo_write_guard(request: Request, call_next):
+    """Public demo write-block: every demo-blocked write route answers 404.
+
+    Exact method+path matching only (app.demo_mode.BLOCKED_WRITE_ROUTES):
+    unknown method+path pairs are NOT blocked, so every read route stays
+    fully live for a read-only audience. The check re-reads the live
+    settings each request, so it costs nothing when demo mode is off and
+    honors flips immediately. Non-demo deployments never enter the guard.
+    """
+    if is_demo_mode(get_settings()) and is_demo_blocked(
+        request.method, request.url.path
+    ):
+        return JSONResponse(status_code=404, content={"detail": DEMO_BLOCKED_DETAIL})
+    return await call_next(request)
 
 # ── D7.5 cutover: FastAPI serves the built React app at /app ────────────
 # Resolved at import so a missing build can never crash startup: when

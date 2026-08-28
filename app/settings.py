@@ -49,6 +49,12 @@ class Settings(BaseSettings):
     # ledger/health mode flips to KILLED. Default off — normal operation.
     kill_switch: bool = Field(default=False, validation_alias="VAAPSI_KILL_SWITCH")
 
+    # Public demo mode: VAAPSI_PUBLIC_DEMO=1 → fail-closed read-only demo.
+    # app/demo_mode.py refuses to boot when real credentials are also set,
+    # app.main skips the ingest router and 404s every write route, and a
+    # missing store is seeded with sanitized demo data on boot. Default off.
+    public_demo: bool = Field(default=False, validation_alias="VAAPSI_PUBLIC_DEMO")
+
     # Where the D5 dashboard's kill endpoint leaves its operator note
     # (a commented line — the in-memory flip rules the running process;
     # tests point this at a tmp copy so the real .env is never touched).
