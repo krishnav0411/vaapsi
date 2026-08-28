@@ -55,8 +55,20 @@ The dashboard is at http://localhost:8000/app. A built copy of the React
 frontend ships in `frontend/dist/`, so you don't need node to see it. There's
 also an older server-rendered version at `/dashboard`.
 
+## Screenshots
+
+![Overview — honest zeros with denominators, live freshness, kill switch](docs/screenshots/01-overview.png)
+
+![Ledger explorer — hash-linked rows, one-click tamper demo](docs/screenshots/05-tamper-demo.png)
+
+![Episode detail — the full dispatch story including the real Razorpay 400 and the dead-letter drain](docs/screenshots/03-episode-detail.png)
+
+![Drills console — replay storms, gateway 5xx, dead LLM, run against isolated stores](docs/screenshots/06-drills.png)
+
+![Approvals — calm empty state when nothing is awaiting judgment](docs/screenshots/07-approvals.png)
+
 ```bash
-make test                 # 192 tests
+make test                 # 364 backend tests + 28 frontend tests
 make verify-chain         # replays the audit ledger
 ```
 
@@ -122,17 +134,24 @@ so the residual spread between them is sampling noise, not signal.
 
 ```text
 app/
-  ingest/      webhook receiver (HMAC, idempotency) + halt/verify consumers
+  ingest/      webhook receiver (HMAC, idempotency, shape validation) + consumers
   core/        episode state machine
-  policy/      the rules engine (caps, cooling, quiet hours, gates)
+  policy/      the rules engine (caps, cooling, quiet hours, gates, fencing)
   llm/         allowlisted client + degraded fallback
-  actions/     payment-link dispatch, dead-letter queue
+  actions/     payment-link dispatch, dead-letter queue, failure classifier
   gates/       human approval
   audit/       hash-chained ledger + verifier
   dashboard/   JSON API, React app at /app, older Jinja pages at /dashboard
-tests/         192 tests
+tests/         364 tests + 28 frontend tests + 16-attack gauntlet
 chaos/         failure drills (replay storms, fake 5xx, dead LLM)
 EXPERIMENT.md  the cohort design, written before any data
+SAFETY.md      every hard bound with its proving test
+WHAT_BROKE.md  ten published failures with root causes and fixes
+THREAT-MODEL.md  non-capabilities table: why each danger has no code path
+DECISIONS.md   the calls that shaped the build, with rejected alternatives
+VERIFY.md      every headline claim → artifact + command
+RESULTS.md     live experiment counts, regenerated from the ledger
+demo-evidence/ green/red paired transcripts
 ```
 
 ## Scope
