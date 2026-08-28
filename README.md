@@ -1,126 +1,79 @@
 # Vaapsi
 
-A recovery agent for failed Razorpay subscription charges. Test-mode APIs
-only, built for the Razorpay AI Buildathon 2026 (Track 03).
+Recovery agent for failed Razorpay subscription charges. The rules engine
+decides, the LLM only words the message, and every step lands in a
+tamper-evident ledger. Built for the Razorpay AI Buildathon 2026, Track 03.
+
+> Everyone is teaching agents to recover money. Vaapsi is the proof they
+> didn't message anyone they shouldn't have.
 
 **Live read-only demo:** https://vaapsi-6sdk.onrender.com/app — seeded
-sanitized data, every write route disabled, and the boot refuses to start if
-any provider credential is present. Free tier: the first load after ~15
-minutes idle wakes the service in a few seconds.
+sanitized data, every write route disabled, boot refuses with any provider
+credential present. Free tier: first load after ~15 min idle wakes the
+service in a few seconds.
 
-When a subscription charge fails a few times, Razorpay halts the
-subscription. The money is usually still owed; the customer just had an
-expired card or a dry UPI mandate. Nobody chases it. Someone has to notice,
-then email the customer, then hope. Vaapsi does that chase the boring way: a
-rules engine decides whether and when to reach out, an LLM only picks the
-wording and the channel, and every step lands in an append-only ledger.
-
-> Recovering money is easy to demo and easy to fake. The hard part is
-> proving you didn't message someone you shouldn't have. That proof is the
-> product.
-
-## Meeting the track bar
-
-Track 03 lists four requirements. Here is where each one lives:
-
-| The track asks for | Where it is |
+| measured | live run, test mode |
 |---|---|
-| Webhook ingestion | `app/ingest/`, HMAC over raw bytes, idempotency keyed on event id, shape-adversarial payloads rejected 400 at the door |
-| Payment link / checkout actions | `app/actions/recovery_link.py`, links stamped with the episode id in `notes`, dead-letter queue with drain-and-repair |
-| Retry / dunning caps | `app/policy/`, 3 attempts, 6h cooling, 48h between outreaches, quiet hours 21:00–09:00 IST, stop-on-charge |
-| Human in the loop for high value | `app/gates/`, every action above ₹500 waits for an approve/reject that only a human can give |
+| Subscriptions instrumented | 60 (30 agent / 30 control) |
+| Halt events ingested | 15 |
+| Outreach to already-charged customers | **0** |
+| Recovered so far | ₹0 — one live link awaiting payment |
 
-## Try it in two minutes
+## What broke, and how I got out
 
-```bash
-cp .env.example .env      # add your Razorpay test keys
-make install
-make run                  # dashboard at http://localhost:8000/app
-```
+Four real failures from the build, each fixed and left visible in the
+ledger. (The form asked for this first, so it's first here too.)
 
-No keys yet? The tests and the ledger verifier run fully offline:
+**Razorpay's webhook dispatcher went silent for hours.** The API accepted
+every halt on my side; no webhook arrived. Diffing Razorpay's API against my
+own table showed the gap — the events existed there and nowhere in my store.
+Deleting and recreating the webhook fixed it; six halts flushed in from
+their retry queue, and idempotency absorbed all six.
 
-```bash
-make test                 # 364 backend tests + 28 frontend tests
-make verify-chain         # replays the audit ledger, fails loudly on tamper
-```
+**The first outreach died on a Razorpay 400.** `reference_id` is capped at
+40 characters; mine was 43. The error, the retry, and the repair are all
+still rendered on the episode timeline. I truncated the id, repaired the
+payload, drained the dead-letter queue, and the same link went out.
 
-The dashboard ships pre-built in `frontend/dist/`, so you don't need node to
-see it. There's also an older server-rendered version at `/dashboard`.
+**I killed the LLM mid-episode on purpose.** The run switched to fixed
+templates in about four seconds and completed the action anyway. The ledger
+row says `DEGRADED`.
 
-**The demo worth running:** open `/app/ledger` and click *Run tamper demo*.
-It copies the store, edits one amount in the copy, and the verifier names
-the row:
+**My own gauntlet caught a defect in my own receiver.** A malformed but
+validly-signed payload crashed the receiver with a 500 instead of rejecting
+with a 400. Fixed, and the 16-attack gauntlet now runs 16/16 with the
+scorecard committed at `results/gauntlet_scorecard.json`.
 
-```text
-tamper_detected: seq 4, field recovered_paise, expected 0, found 1
-stored hash 592781fa… ≠ recomputed 3f9c22bd…   original store untouched
-```
+## The batch, measured
 
-One edited field, caught by arithmetic. The original store stays valid the
-whole time — `make verify-chain` before and after if you want to check.
+The track bar asks for measured money recovered across a batch, with
+compliant escalation, stopping rules, and an audit trail. The design was
+written down before any data existed (`EXPERIMENT.md`): 60 test
+subscriptions, 30 get the agent, 30 get Razorpay's default retries only,
+assigned alternately at creation.
 
-## How it's put together
-
-```text
-webhook (HMAC verified, idempotent)
-   → episode state machine
-      → policy engine (plain Python, no LLM)
-         → LLM picks {channel, message_variant} from an allowlist
-            → payment link via Razorpay API
-               → verify consumer watches for the payment
-```
-
-The LLM never decides anything that matters. It reads a diagnosis and
-returns two fields from an allowlist in code. If the model is down, returns
-garbage, or tries something outside the allowlist, the run continues with
-fixed templates instead, and the ledger row says `DEGRADED`. The recovery
-doesn't stop because the model did.
-
-Every state change writes one row to an append-only SQLite ledger where each
-row's hash covers the previous row's hash. The kill switch is engine-side:
-one env flag and every outbound action refuses, regardless of what the
-dashboard or the model wants.
-
-## Screenshots
-
-![Overview, honest zeros with denominators, live freshness, kill switch](docs/screenshots/01-overview.png)
-
-![Ledger explorer, hash-linked rows, one-click tamper demo](docs/screenshots/05-tamper-demo.png)
-
-![Episode detail, the full dispatch story including the real Razorpay 400 and the dead-letter drain](docs/screenshots/03-episode-detail.png)
-
-![Drills console, replay storms, gateway 5xx, dead LLM, run against isolated stores](docs/screenshots/06-drills.png)
-
-![Approvals, calm empty state when nothing is awaiting judgment](docs/screenshots/07-approvals.png)
-
-## Numbers so far
-
-The experiment design was written down before any data was collected (see
-`EXPERIMENT.md`): 60 test subscriptions, 30 get the agent (treatment), 30
-don't (control), assigned alternately at creation time.
-
-| Metric | Value | Note |
+| Metric | Value | Provenance |
 |---|---|---|
-| Cohorts | 30 / 30 | assigned alternately at creation |
-| Halt events | 15 | includes 6 flushed from Razorpay's retry queue after a dispatcher stall |
-| Episodes opened | 5 | 1 outreach sent, 4 waiting on their policy window |
-| Outreach to already-charged subs | 0 | checked against stop events in the ledger |
-| Recovered | ₹0 | one live link created, not paid yet |
+| Cohorts | 30 / 30 | assigned alternately at creation, `data/cohort_manifest.csv` |
+| Halt events | 15 (9 produced episodes) | webhook archive, HMAC-verified |
+| Episodes opened | 5 — 1 outreach sent, 4 inside their policy window | episodes table |
+| Stopping rules | 3 attempts · 6h cooling · 48h between outreaches · 21:00–09:00 IST quiet · ₹500 human gate | `app/policy/`, frozen constants with proving tests |
+| Outreach to already-charged subs | 0 | SQL against stop events in the ledger |
+| Recovered | ₹0 (one link live, unpaid) | ledger `recovered_paise` |
 
-Small cohort, one plan, seven-day window, test mode throughout. The full
-table with final denominators lands in `RESULTS.md` before submission.
+Reproduce the counts from a fresh clone: `make verify-chain` replays the
+audit ledger; the dashboard recomputes every metric from the store on load.
 
 ## Offline pipeline evaluation
 
 A committed, reproducible offline evaluation of the decision pipeline
 (`make eval`): 200 synthetic halted-subscription cases across 16 failure
 families, four arms over the same corpus, a documented synthetic outcome
-model. Clearly not real money, no real outreach, the live data store is
-never opened. Every case runs in a throwaway temp-dir SQLite store and each
-arm's ledgers are hash-chain-verified afterwards. The numbers below are a
-drift-guard contract: `python scripts/verify_numbers.py` fails CI if this
-block and `results/evaluation.json` ever disagree.
+model. Not real money, no real outreach, the live store never opened. Each
+case runs in a throwaway temp-dir SQLite store and every arm's ledger is
+hash-chain-verified afterwards. The numbers below are a drift-guard
+contract: `python scripts/verify_numbers.py` fails CI if this block and
+`results/evaluation.json` ever disagree.
 
 <!-- eval:start -->
 seed 1403, 200 cases, 16 families, synthetic outcome model - not real money
@@ -138,28 +91,82 @@ LLM flavors, the rules decide); the recovery draw is per (case, arm), so the
 residual spread between them is sampling noise, not signal.
 <!-- eval:end -->
 
-An agent without the rules layer is the `no_agent` row. The distance between
-that row and the others is the whole argument for bounded autonomy.
+The honest reading: the agent does not beat the rules engine — the rules
+*are* the agent, and the model only trims the wording. The distance between
+`no_agent` and everything else is what bounded autonomy buys. What the model
+choice is worth lives in `DECISIONS.md`.
 
-## What went wrong
+## Where AI is used, and where it is not
 
-- Razorpay's webhook dispatcher went quiet for hours mid-experiment. The API
-  accepted every halt from my side, but no webhook ever arrived. Diffing
-  Razorpay's API against my table showed the gap; deleting and recreating
-  the webhook fixed it, and events flowed again within a minute. Six halts
-  flushed in from the retry queue afterward, and idempotency absorbed them.
-- The first outreach dispatch died on a Razorpay 400: reference_id is capped
-  at 40 characters and mine was 43. The error is still in the ledger and
-  rendered on the episode timeline. I truncated the id, repaired the
-  payload, and drained it from the dead-letter queue.
-- I killed the LLM mid-episode on purpose. The run switched to templates in
-  about four seconds and still completed the action. The ledger row says
-  DEGRADED.
-- A 16-attack adversarial gauntlet (replay storms, forged signatures, prompt
-  injection, ledger surgery, kill-switch races) found one real defect: a
-  malformed-but-validly-signed payload crashed the receiver with a 500
-  instead of rejecting with a 400. Fixed, and the gauntlet now runs 16/16
-  with its scorecard committed at `results/gauntlet_scorecard.json`.
+The model reads a diagnosis and returns two fields: channel and
+message_variant. Both come from an allowlist in code. It never decides
+whether to act, never holds credentials, never calls Razorpay, cannot
+invent an amount, and its stale proposals are discarded when the
+subscription state moved underneath them. If it dies, returns garbage, or
+steps outside the allowlist, the run continues on fixed templates and the
+ledger says so.
+
+AI does not: decide financial truth, set retry timing, bend a cap, approve
+itself above ₹500, or recover anything on its own authority.
+
+## How it's put together
+
+```text
+webhook (HMAC over raw bytes, idempotent)
+   → episode state machine
+      → policy engine (plain Python, no LLM)
+         → LLM picks {channel, message_variant} from an allowlist
+            → payment link via Razorpay API
+               → verify consumer watches for the payment
+```
+
+Every state change appends one row to a SQLite ledger where each row's hash
+covers the previous row's hash. `make verify-chain` replays it and fails
+loudly if anything moved. The kill switch is engine-side: one env flag and
+every outbound action refuses, no matter what the dashboard or the model
+says. Public demo mode goes further — the boot refuses to start if any
+provider credential is present, the webhook receiver is never mounted, and
+every write route 404s.
+
+## Try it in two minutes
+
+```bash
+cp .env.example .env      # add your Razorpay test keys
+make install
+make run                  # dashboard at http://localhost:8000/app
+```
+
+No keys? Everything below runs offline:
+
+```bash
+make test                 # 364 backend tests + 28 frontend tests
+make eval                 # rebuilds the 200-case evaluation
+make verify-chain         # replays the audit ledger
+```
+
+The demo worth running needs no keys either: open `/app/ledger`, click
+*Run tamper demo*. It copies the store, edits one amount in the copy, and
+the verifier names the row:
+
+```text
+tamper_detected: seq 4, field recovered_paise, expected 0, found 1
+stored hash 592781fa… ≠ recomputed 3f9c22bd…   original store untouched
+```
+
+One edited field, caught by arithmetic. `make verify-chain` before and after
+if you want the original store's word for it.
+
+## Screenshots
+
+![Overview, honest zeros with denominators, live freshness, kill switch](docs/screenshots/01-overview.png)
+
+![Ledger explorer, hash-linked rows, one-click tamper demo](docs/screenshots/05-tamper-demo.png)
+
+![Episode detail, the full dispatch story including the real Razorpay 400 and the dead-letter drain](docs/screenshots/03-episode-detail.png)
+
+![Drills console, replay storms, gateway 5xx, dead LLM, run against isolated stores](docs/screenshots/06-drills.png)
+
+![Approvals, calm empty state when nothing is awaiting judgment](docs/screenshots/07-approvals.png)
 
 ## Layout
 
@@ -167,38 +174,36 @@ that row and the others is the whole argument for bounded autonomy.
 app/
   ingest/      webhook receiver (HMAC, idempotency, shape validation) + consumers
   core/        episode state machine
-  policy/      the rules engine (caps, cooling, quiet hours, gates, fencing)
+  policy/      rules engine: caps, cooling, quiet hours, gates, fencing
   llm/         allowlisted client + degraded fallback
   actions/     payment-link dispatch, dead-letter queue, failure classifier
   gates/       human approval
   audit/       hash-chained ledger + verifier
   dashboard/   JSON API, React app at /app, older Jinja pages at /dashboard
-tests/         364 tests + 28 frontend tests + 16-attack gauntlet
+tests/         364 backend tests + 28 frontend tests + 16-attack gauntlet
 chaos/         failure drills (replay storms, fake 5xx, dead LLM)
-EXPERIMENT.md  the cohort design, written before any data
-SAFETY.md      every hard bound with its proving test
-WHAT_BROKE.md  ten published failures with root causes and fixes
+EXPERIMENT.md    the cohort design, written before any data
+SAFETY.md        every hard bound with its proving test
+WHAT_BROKE.md    ten published failures with root causes and fixes
 THREAT-MODEL.md  non-capabilities table: why each danger has no code path
-DECISIONS.md   the calls that shaped the build, with rejected alternatives
-VERIFY.md      every headline claim → artifact + command
-RESULTS.md     live experiment counts, regenerated from the ledger
-demo-evidence/ green/red paired transcripts
+DECISIONS.md     the calls that shaped the build, with rejected alternatives
+VERIFY.md        every headline claim, its artifact, its command
+RESULTS.md       live experiment counts, regenerated from the ledger
+demo-evidence/   green/red paired transcripts
 ```
 
 ## Scope
 
 Test mode only, no real money. Outreach is logged rather than delivered,
-since test mode doesn't send real SMS or email. The agent only collects what
-a merchant is already owed and it does nothing else. What it deliberately
-has no code path for: customer communication outside the dispatched link,
-amounts above the invoice's outstanding value, actions without a policy
-verdict, and anything at all once the kill switch is set.
-
-## CI
+since test mode doesn't send real SMS or email. The agent collects only what
+a merchant is already owed. There is no code path for contacting a customer
+outside a dispatched link, for an amount above the invoice's outstanding
+value, for an action without a policy verdict, or for anything at all once
+the kill switch is set. Not affiliated with Razorpay; not an endorsement.
 
 ![CI](https://github.com/krishnav0411/vaapsi/actions/workflows/ci.yml/badge.svg)
 
-Every push and pull request runs three jobs: the Python suite (ruff +
-pytest), the frontend (vitest + a production build), and the drift-guard
-that checks the published evaluation numbers against the committed JSON.
-No secrets are used. Everything runs offline against seeded stores.
+Every push runs three jobs: the Python suite (ruff + pytest), the frontend
+(vitest + production build), and the drift-guard that fails if the published
+evaluation numbers and the committed JSON ever disagree. No secrets; all
+offline against seeded stores.
