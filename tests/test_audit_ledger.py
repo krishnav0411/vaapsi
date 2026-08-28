@@ -110,7 +110,10 @@ class TestTamperDetection:
             (1, "SET outcome = 'ACTION_FORGED' WHERE seq = 1", ()),  # first row
             (2, "SET recovered_paise = recovered_paise + 1 WHERE seq = 2", ()),  # middle
             (3, "SET policy_eval = replace(policy_eval, 'rule', 'RULE') WHERE seq = 3", ()),
-            (3, "SET row_hash = '0' || substr(row_hash, 2) WHERE seq = 3", ()),  # hash field
+            # hash field — 'x' is never a hex digit, so the tamper is a real
+            # mutation no matter what the stored hash starts with (flipping
+            # to '0' was a no-op 1/16 of the time).
+            (3, "SET row_hash = 'x' || substr(row_hash, 2) WHERE seq = 3", ()),
         ],
         ids=["first-row", "middle-row-amount", "middle-row-policy", "hash-field"],
     )

@@ -77,6 +77,33 @@ don't (control), assigned alternately at creation time.
 Small cohort, one plan, seven-day window, test mode throughout. I'll freeze
 the full table with honest denominators in `RESULTS.md` before submitting.
 
+## Offline pipeline evaluation
+
+A committed, reproducible offline evaluation of the decision pipeline
+(`make eval`): 200 synthetic halted-subscription cases across 16 failure
+families, four arms over the same corpus, a documented synthetic outcome
+model — clearly not real money, no real outreach, the live data store is
+never opened. Every case runs in a throwaway temp-dir SQLite store and each
+arm's ledgers are hash-chain-verified afterwards. The numbers below are the
+drift-guard contract: `python scripts/verify_numbers.py` fails CI if this
+block and `results/evaluation.json` ever disagree.
+
+<!-- eval:start -->
+seed 1403, 200 cases, 16 families, synthetic outcome model - not real money
+
+| arm | attempts | recovered | recovery_rate | 95% Wilson CI | oracle_gap |
+|---|---|---|---|---|---|
+| full_llm | 86 | 43 | 0.5000 | [0.3966, 0.6034] | -0.1650 |
+| no_agent | 200 | 32 | 0.1600 | [0.1157, 0.2171] | 0.1750 |
+| random_allowlist | 86 | 42 | 0.4884 | [0.3855, 0.5922] | -0.1534 |
+| rules_only | 86 | 40 | 0.4651 | [0.3635, 0.5698] | -0.1301 |
+
+Invariants: zero false outreach in every pipeline arm, every arm's ledger
+chain verifies, seed pinned. The three pipeline arms route identically
+(the LLM flavors, the rules decide); the recovery draw is per (case, arm),
+so the residual spread between them is sampling noise, not signal.
+<!-- eval:end -->
+
 ## What went wrong
 
 - Razorpay's webhook dispatcher went quiet for hours mid-experiment. The API

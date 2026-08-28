@@ -1,0 +1,72 @@
+{
+  "arms": {
+    "full_llm": {
+      "attempts": 86,
+      "blocked": 106,
+      "ci95_wilson_hi": 0.60339,
+      "ci95_wilson_lo": 0.39661,
+      "discarded_stale": 9,
+      "false_outreach": 0,
+      "gated": 0,
+      "oracle_gap": -0.165,
+      "oracle_rate": 0.335,
+      "recovered": 43,
+      "recovery_rate": 0.5,
+      "request_retry": 9
+    },
+    "no_agent": {
+      "attempts": 200,
+      "blocked": 0,
+      "ci95_wilson_hi": 0.217141,
+      "ci95_wilson_lo": 0.115674,
+      "discarded_stale": 0,
+      "false_outreach": 0,
+      "gated": 0,
+      "oracle_gap": 0.175,
+      "oracle_rate": 0.335,
+      "recovered": 32,
+      "recovery_rate": 0.16,
+      "request_retry": 0
+    },
+    "random_allowlist": {
+      "attempts": 86,
+      "blocked": 106,
+      "ci95_wilson_hi": 0.592233,
+      "ci95_wilson_lo": 0.385506,
+      "discarded_stale": 9,
+      "false_outreach": 0,
+      "gated": 0,
+      "oracle_gap": -0.153372,
+      "oracle_rate": 0.335,
+      "recovered": 42,
+      "recovery_rate": 0.488372,
+      "request_retry": 9
+    },
+    "rules_only": {
+      "attempts": 86,
+      "blocked": 106,
+      "ci95_wilson_hi": 0.569757,
+      "ci95_wilson_lo": 0.363459,
+      "discarded_stale": 9,
+      "false_outreach": 0,
+      "gated": 0,
+      "oracle_gap": -0.130116,
+      "oracle_rate": 0.335,
+      "recovered": 40,
+      "recovery_rate": 0.465116,
+      "request_retry": 9
+    }
+  },
+  "invariants": {
+    "chain_valid_after": true,
+    "deterministic_seed": 1403,
+    "zero_false_outreach": true
+  },
+  "meta": {
+    "cases": 200,
+    "families": 16,
+    "generated_by": "scripts/run_evaluation.py",
+    "note": "synthetic outcome model - not real money",
+    "seed": 1403
+  }
+}
