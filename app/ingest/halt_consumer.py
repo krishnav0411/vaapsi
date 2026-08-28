@@ -109,7 +109,20 @@ def _event_meta(event_row: sqlite3.Row | Mapping[str, Any]) -> dict[str, Any]:
         payload = json.loads(event_row["payload_json"])
     except (TypeError, ValueError):
         payload = {}
-    entity = (payload.get("payload") or {}).get("subscription", {}).get("entity") or {}
+    # The wire payload can be anything a signature-valid sender posts: treat
+    # every nesting level as untrusted shape (a string entity, a list where
+    # an object belongs) and fall back to the event row's own identity.
+    container = payload.get("payload") if isinstance(payload, dict) else None
+    subscription_branch = (
+        container.get("subscription") if isinstance(container, dict) else None
+    )
+    entity = (
+        subscription_branch.get("entity")
+        if isinstance(subscription_branch, dict)
+        else None
+    )
+    if not isinstance(entity, dict):
+        entity = {}
     halt_ts = event_row["event_ts_utc"] or event_row["received_ts_utc"]
     return {
         "subscription_id": str(entity.get("id") or event_row["subscription_id"] or ""),

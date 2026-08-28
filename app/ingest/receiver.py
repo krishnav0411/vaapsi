@@ -125,17 +125,33 @@ def process_webhook(
     except (UnicodeDecodeError, json.JSONDecodeError):
         raise WebhookRejection(400, "invalid JSON body") from None
 
+    # A signature proves the bytes came from Razorpay, not that they carry a
+    # well-formed event. A shape-adversarial body (a bare string, a list, an
+    # entity that is not an object) must be rejected as a bad request, never
+    # crash the receiver into a 500.
+    if not isinstance(payload, dict):
+        raise WebhookRejection(400, "event payload must be a JSON object")
+
     event = str(payload.get("event", "unknown"))
     # Event payloads nest the entity under different keys depending on the
     # event family (subscription.* / payment.* / payment_link.* / invoice.*).
     # Key idempotency on the *entity* id — never a blanket "unknown" — or
     # distinct events in the same window would wrongly collapse into one.
     subscription_id = "unknown"
+    family_container = payload.get("payload", {})
+    if not isinstance(family_container, dict):
+        # A Razorpay event always nests entities under payload.<family> —
+        # anything else is not an event we can idempotently key or audit.
+        raise WebhookRejection(400, "event payload missing entity nesting")
     for family in ("subscription", "payment", "payment_link", "invoice"):
-        ent = payload.get("payload", {}).get(family, {}).get("entity", {})
-        if ent.get("id"):
-            subscription_id = str(ent["id"])
+        branch = family_container.get(family, {})
+        entity = branch.get("entity") if isinstance(branch, dict) else None
+        if isinstance(entity, dict) and entity.get("id"):
+            subscription_id = str(entity["id"])
             break
+        if isinstance(branch, dict) and "entity" in branch and not isinstance(branch["entity"], dict):
+            # shape-adversarial: entity present but not an object
+            raise WebhookRejection(400, "event entity must be a JSON object")
     occurred_at = _event_time(payload.get("created_at"))
     received_at = datetime.now(timezone.utc).isoformat()
 
