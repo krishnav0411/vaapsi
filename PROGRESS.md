@@ -2,7 +2,7 @@
 
 Short notes per day while building. No plan documents, just what happened.
 
-## Day 0 — the webhook problem
+## The webhook problem
 
 Razorpay signs every webhook with an HMAC. If you verify it wrong, you get
 either false accepts or false rejects. I wrote the receiver to read the raw
@@ -17,7 +17,7 @@ posted a signed self-test through a public tunnel, watched it verify and
 land in the database. One snag: I first used ngrok, which Windows Defender
 blocked as a PUA. cloudflared worked fine and stayed.
 
-## Day 1 — the experiment, and the first mistake
+## The experiment, and the first mistake
 
 Before creating any data, I wrote down the experiment design: 60 test
 subscriptions on one ₹499/month plan, half treatment and half control,
@@ -39,7 +39,7 @@ POSTed to the bare tunnel domain all night. My server logged a wall of 404s
 from AWS Mumbai retry traffic. Added an app-level fallback route that
 verifies HMAC on those deliveries too.
 
-## Day 2 — ledger, state machine, rules
+## Ledger, state machine, rules
 
 The audit ledger came first: append-only SQLite, each row's hash covering the
 previous row's hash plus its content. Then the episode state machine (new →
@@ -52,7 +52,7 @@ rows so a replayed ledger can't inflate attempt counts.
 The offline demo at the end of the day dispatched 6 treatment episodes,
 blocked 4 control ones, wrote 16 ledger rows, and verified the chain.
 
-## Day 3 — where the LLM is allowed
+## Where the LLM is allowed
 
 The LLM gets a diagnosis and returns channel plus message_variant, both from
 allowlists enforced in code. Anything else — a different action, a smuggled
@@ -62,7 +62,7 @@ amounts above ₹500, and the orchestrator that ties diagnosis → scoring →
 decision → policy → action together, switching to fixed templates the moment
 the model errors.
 
-## Day 4 — breaking it on purpose
+## Breaking it on purpose
 
 Three drills, all repeatable commands now: replay 30 webhooks where 25 are
 identical and watch idempotency collapse them to one row; a fake client that
@@ -72,7 +72,7 @@ The first quiet-hours block I saw was on my own chaos probe at 06:50, which
 was oddly satisfying: the compliance layer refusing to misbehave even for a
 test.
 
-## Day 5 — the dashboard
+## The dashboard
 
 Metrics first (M1 recovery rate, M2 rupees, M3 time-to-recover, M4 outreach
 efficiency, M5 false outreach), then pages, then the kill switch with a
@@ -80,7 +80,7 @@ typed-KILL confirmation. Styling followed Stripe's dashboard tokens initially
 and got redone in Razorpay's Blade tokens a day later, after reading Blade's
 source. Live kill-cycle tested on an isolated port.
 
-## Day 6 — the stall
+## The stall
 
 Razorpay's webhook dispatcher stopped delivering. My side was clean: tunnel
 up, server healthy, secret correct, API showed the halts, and the dashboard
@@ -101,7 +101,7 @@ and repaired the payload, and the drained link became the first real payment
 link the system created. Wired the halt→episode consumer and the
 payment_link.paid → verified consumer.
 
-## Day 7 — the React rebuild
+## The React rebuild
 
 Rewrote the dashboard as a React app in Razorpay's Blade design language,
 vendored Razorpay's actual fonts from their open-source Blade package (8

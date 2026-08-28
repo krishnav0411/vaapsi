@@ -35,10 +35,10 @@ def main() -> int:
     conn = connect()
     rows = conn.execute(
         "SELECT id, subscription_id, halt_ts_utc FROM episodes"
-        " WHERE state = 'NEW' ORDER BY halt_ts_utc ASC LIMIT ?",
+        " WHERE state IN ('NEW', 'SCORED') ORDER BY halt_ts_utc ASC LIMIT ?",
         (args.limit,),
     ).fetchall()
-    print(f"NEW episodes to cycle: {len(rows)}")
+    print(f"NEW+SCORED episodes to cycle: {len(rows)}")
     if not rows:
         print("nothing to do")
         return 0

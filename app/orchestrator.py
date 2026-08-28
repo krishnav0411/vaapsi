@@ -271,24 +271,29 @@ def run_recovery_cycle(
                 "mode": mode,
             },
         )
-    episode = episodes.transition(
-        conn,
-        episode["id"],
-        "SCORED",
-        ledger_fields={
-            "score": float(score.tier),
-            "features": score.features,
-            "policy_eval": {
-                "decision": "score",
-                "tier": score.tier,
-                "rationale": score.rationale,
+    if episode["state"] != "SCORED":
+        # Fresh re-entry (e.g. a previous pass blocked before dispatch, or a
+        # new cycle after cooling): stamp the score row. An episode already
+        # SCORED keeps its original score row — re-scoring on every pass
+        # would duplicate analysis evidence the ledger does not need.
+        episode = episodes.transition(
+            conn,
+            episode["id"],
+            "SCORED",
+            ledger_fields={
+                "score": float(score.tier),
+                "features": score.features,
+                "policy_eval": {
+                    "decision": "score",
+                    "tier": score.tier,
+                    "rationale": score.rationale,
+                    "mode": mode,
+                    "choice": choice,
+                },
                 "mode": mode,
-                "choice": choice,
+                **llm_evidence,
             },
-            "mode": mode,
-            **llm_evidence,
-        },
-    )
+        )
 
     decision = evaluate(conn, subscription_id, episode)
     if decision.action != "SEND":
