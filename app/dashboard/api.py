@@ -35,6 +35,12 @@ from app.dashboard.routes import (
 )
 from app.db import get_conn
 from app.gates import human_gate
+from app.policy.merchant import (
+    DEFAULT_MERCHANT_ID,
+    MerchantPolicyIn,
+    list_policies,
+    upsert_policy,
+)
 
 api_router = APIRouter(prefix="/api", tags=["api"])
 
@@ -164,6 +170,36 @@ def mode() -> dict[str, str]:
     """Current engine mode for the banner: NORMAL | DEGRADED | KILLED."""
     with get_conn() as conn:
         return {"mode": engine_mode(conn)}
+
+
+@api_router.get("/policy")
+def policy_rows() -> dict[str, Any]:
+    """{default, custom} — the DEFAULT policy row (the frozen constants the
+    engine falls back to) plus every per-merchant override. Nothing here is
+    secret: these are the same thresholds the ledger's policy_eval prints."""
+    with get_conn() as conn:
+        return list_policies(conn)
+
+
+@api_router.put("/policy/{merchant_id}")
+def put_policy(merchant_id: str, payload: MerchantPolicyIn) -> dict[str, Any]:
+    """Create/update ONE merchant's policy row, range-validated by
+    MerchantPolicyIn (the DB CHECKs mirror it). The DEFAULT row is the
+    frozen safety envelope — it changes in code with review, never over the
+    API — so a PUT targeting it fails closed with 403 and writes nothing."""
+    mid = merchant_id.strip()
+    if not mid:
+        raise HTTPException(status_code=422, detail="merchant_id must be non-empty")
+    if mid == DEFAULT_MERCHANT_ID:
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "the DEFAULT policy row is frozen (app/policy/merchant.py) and can "
+                "never be edited through the API — create a per-merchant row instead"
+            ),
+        )
+    with get_conn() as conn:
+        return upsert_policy(conn, mid, payload.model_dump())
 
 
 class KillRequest(BaseModel):

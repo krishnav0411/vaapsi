@@ -89,6 +89,60 @@
   </div>
 </section>
 
+<section class="section" aria-label="Policy">
+  <h2 class="section-head">Policy</h2>
+  <div class="card">
+    <p class="caption">DEFAULT row — frozen in code (<code class="mono">app/policy/merchant.py</code>), never editable through the API. Every merchant without a custom row is governed by exactly these bounds.</p>
+    <table class="table">
+      <thead>
+        <tr>
+          <th>cooling</th>
+          <th>min outreach interval</th>
+          <th>max attempts / episode</th>
+          <th>quiet hours (IST)</th>
+          <th>human gate above</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="tnum">
+          <td>{{ policy_default.cooling_hours }} h</td>
+          <td>{{ policy_default.outreach_min_interval_hours }} h</td>
+          <td>{{ policy_default.max_attempts_per_episode }}</td>
+          <td>{{ '%02d:00-%02d:00' % (policy_default.quiet_hours_start, policy_default.quiet_hours_end) }}</td>
+          <td>{{ policy_default.human_gate_threshold_paise | paise }}</td>
+        </tr>
+      </tbody>
+    </table>
+    {% if policy_overrides %}
+    <p class="caption">Per-merchant overrides — episodes of these merchants follow their own row, not the DEFAULT one:</p>
+    <table class="table">
+      <thead>
+        <tr>
+          <th>merchant</th>
+          <th>cooling</th>
+          <th>min outreach interval</th>
+          <th>max attempts</th>
+          <th>quiet hours (IST)</th>
+          <th>human gate above</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in policy_overrides %}
+        <tr class="tnum">
+          <td class="mono sub-id">{{ p.merchant_id }}</td>
+          <td>{{ p.cooling_hours }} h</td>
+          <td>{{ p.outreach_min_interval_hours }} h</td>
+          <td>{{ p.max_attempts_per_episode }}</td>
+          <td>{{ '%02d:00-%02d:00' % (p.quiet_hours_start, p.quiet_hours_end) }}</td>
+          <td>{{ p.human_gate_threshold_paise | paise }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  </div>
+</section>
+
 <section class="section">
   <h2 class="section-head">Kill switch</h2>
   {% if mode == "KILLED" %}

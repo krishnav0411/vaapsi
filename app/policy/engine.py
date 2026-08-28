@@ -12,6 +12,14 @@ action='BLOCKED'): kill switch → attempt cap / state gate → cooling-off →
 48h outreach interval → quiet hours (IST) → cohort gate. All pass →
 (ok=True, action='SEND').
 
+Every threshold comes from the episode merchant's row in the
+merchant_policies table (app.policy.merchant): the DEFAULT row is seeded
+with the frozen constants below, and a merchant without a row falls back
+to it — so behavior for default merchants is byte-for-byte what it has
+always been. Callers may pass merchant_id explicitly (the API/dashboard
+do); otherwise the episode dict's merchant_id (when present) or DEFAULT
+governs.
+
 Attempt and last-action state are read from the episodes row columns
 (attempt_count, last_action_ts_utc) — never by counting ledger rows, which
 would make the caps depend on audit volume instead of outreach reality.
@@ -31,17 +39,28 @@ from datetime import datetime, timezone
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from app.policy.merchant import (
+    DEFAULT_COOLING_HOURS,
+    DEFAULT_HUMAN_GATE_THRESHOLD_PAISE,
+    DEFAULT_MAX_ATTEMPTS_PER_EPISODE,
+    DEFAULT_OUTREACH_MIN_INTERVAL_HOURS,
+    DEFAULT_QUIET_HOURS_IST,
+    get_policy,
+)
 from app.settings import get_settings
 
 # Frozen policy constants — the safety envelope. These change in code (with
 # review), never via env: a cap that drifts silently is worse than a fixed
 # one. The kill switch is the sole env-driven input (it must be flippable
-# mid-incident without a deploy) and lives in app.settings.
-COOLING_HOURS = 6
-OUTREACH_MIN_INTERVAL_HOURS = 48
-MAX_ATTEMPTS_PER_EPISODE = 3
-QUIET_HOURS_IST = (21, 9)  # (start, end) hour in IST — quiet 21:00 through 09:00
-HUMAN_GATE_THRESHOLD_PAISE = 50000  # ₹500 — outreach above this needs a human (D3+)
+# mid-incident without a deploy) and lives in app.settings. The values are
+# OWNED by app.policy.merchant — the DEFAULT row of the merchant_policies
+# table is built from them — and re-exported here under their historical
+# names so every existing importer sees exactly the same integers.
+COOLING_HOURS = DEFAULT_COOLING_HOURS
+OUTREACH_MIN_INTERVAL_HOURS = DEFAULT_OUTREACH_MIN_INTERVAL_HOURS
+MAX_ATTEMPTS_PER_EPISODE = DEFAULT_MAX_ATTEMPTS_PER_EPISODE
+QUIET_HOURS_IST = DEFAULT_QUIET_HOURS_IST  # (start, end) hour in IST — quiet 21:00 through 09:00
+HUMAN_GATE_THRESHOLD_PAISE = DEFAULT_HUMAN_GATE_THRESHOLD_PAISE
 DEFAULT_KILL_SWITCH = False
 
 IST = ZoneInfo("Asia/Kolkata")
@@ -70,9 +89,8 @@ def _parse_utc(ts: str | None) -> datetime | None:
     return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=timezone.utc)
 
 
-def _is_quiet_hours(ist_hour: int) -> bool:
-    """21:00–09:00 IST across midnight; 09:00 exactly is open, 21:00 closed."""
-    start, end = QUIET_HOURS_IST
+def _is_quiet_hours(ist_hour: int, start: int, end: int) -> bool:
+    """Quiet window across midnight (e.g. 21:00–09:00); `end` exactly is open."""
     return ist_hour >= start or ist_hour < end
 
 
@@ -89,12 +107,17 @@ def evaluate(
     conn: sqlite3.Connection,
     subscription_id: str,
     episode: dict[str, Any],
+    *,
+    merchant_id: str | None = None,
 ) -> PolicyDecision:
     """Decide whether outreach may leave now for this episode's subscription.
 
     `episode` is an episodes-row dict (as returned by app.core.episodes);
     its `id` locates the row, whose columns are re-read so the caps always
-    see current attempt_count / last_action_ts_utc. Returns the FIRST
+    see current attempt_count / last_action_ts_utc. The thresholds come from
+    the merchant's merchant_policies row — `merchant_id` if given, else the
+    episode dict's merchant_id when present, else the always-seeded DEFAULT
+    row (identical to the historical frozen constants). Returns the FIRST
     failing rule as (ok=False, action='BLOCKED'), or (ok=True, 'SEND')
     when every rule passes — one PolicyDecision whose details go into the
     ledger row verbatim.
@@ -105,6 +128,16 @@ def evaluate(
             subscription_id,
             kill_switch=True,
         )
+
+    policy = get_policy(
+        conn,
+        merchant_id if merchant_id is not None else episode.get("merchant_id"),
+    )
+    max_attempts = int(policy["max_attempts_per_episode"])
+    cooling_hours = int(policy["cooling_hours"])
+    min_interval_hours = int(policy["outreach_min_interval_hours"])
+    quiet_start = int(policy["quiet_hours_start"])
+    quiet_end = int(policy["quiet_hours_end"])
 
     row = conn.execute(
         "SELECT state, attempt_count, last_action_ts_utc, cohort "
@@ -117,43 +150,42 @@ def evaluate(
     cohort = row["cohort"] if row is not None else episode["cohort"]
 
     # Outreach may only leave a SCORED episode, and at most
-    # MAX_ATTEMPTS_PER_EPISODE times per halt.
-    if state != "SCORED" or attempt_count >= MAX_ATTEMPTS_PER_EPISODE:
+    # max_attempts times per halt.
+    if state != "SCORED" or attempt_count >= max_attempts:
         return _blocked(
             "max_attempts",
             subscription_id,
             state=state,
             attempt_count=attempt_count,
-            max_attempts=MAX_ATTEMPTS_PER_EPISODE,
+            max_attempts=max_attempts,
         )
 
     now = _now_utc()
     last_action = _parse_utc(last_action_ts)
     if last_action is not None:
         hours_since = (now - last_action).total_seconds() / 3600
-        if hours_since < COOLING_HOURS:
+        if hours_since < cooling_hours:
             return _blocked(
                 "cooling_off",
                 subscription_id,
                 hours_since_last_outreach=round(hours_since, 2),
-                cooling_hours=COOLING_HOURS,
+                cooling_hours=cooling_hours,
             )
-        if hours_since < OUTREACH_MIN_INTERVAL_HOURS:
+        if hours_since < min_interval_hours:
             return _blocked(
                 "outreach_cap_48h",
                 subscription_id,
                 hours_since_last_outreach=round(hours_since, 2),
-                min_interval_hours=OUTREACH_MIN_INTERVAL_HOURS,
+                min_interval_hours=min_interval_hours,
             )
 
     ist_hour = now.astimezone(IST).hour
-    if _is_quiet_hours(ist_hour):
-        start, end = QUIET_HOURS_IST
+    if _is_quiet_hours(ist_hour, quiet_start, quiet_end):
         return _blocked(
             "quiet_hours",
             subscription_id,
             ist_hour=ist_hour,
-            quiet_hours_ist=f"{start:02d}:00-{end:02d}:00",
+            quiet_hours_ist=f"{quiet_start:02d}:00-{quiet_end:02d}:00",
         )
 
     if cohort != "TREATMENT":

@@ -19,6 +19,7 @@ from app.dashboard.routes import router as dashboard_router
 from app.db import connect, get_conn, init_db
 from app.ingest.receiver import root_webhook_handler
 from app.ingest.receiver import router as ingest_router
+from app.policy.merchant import ensure_default_row
 from app.settings import get_settings
 
 
@@ -27,6 +28,11 @@ async def lifespan(_: FastAPI):
     conn = connect()
     try:
         init_db(conn)
+        # Per-merchant policy table: the DEFAULT row (frozen constants) must
+        # exist before the engine's first read. Idempotent; get_policy also
+        # self-heals on cache miss, so a wiped row never wedges the engine.
+        ensure_default_row(conn)
+        conn.commit()
     finally:
         conn.close()
     yield

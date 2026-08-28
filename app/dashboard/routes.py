@@ -40,6 +40,7 @@ from app.core.episodes import EPISODE_STATES
 from app.dashboard import metrics
 from app.db import get_conn
 from app.gates import human_gate
+from app.policy.merchant import list_policies
 from app.settings import get_settings
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
@@ -258,6 +259,9 @@ def _redirect(url: str) -> RedirectResponse:
 def overview(request: Request) -> HTMLResponse:
     with get_conn() as conn:
         context = _base_ctx(conn, "overview")
+        # Per-merchant policy: the DEFAULT row (frozen constants) plus any
+        # custom rows — one card, one definition, straight from the table.
+        policies = list_policies(conn)
         context.update(
             {
                 "m1_treatment": metrics.recovery_rate(conn, "TREATMENT"),
@@ -266,6 +270,8 @@ def overview(request: Request) -> HTMLResponse:
                 "open_episodes": metrics.open_episode_count(conn),
                 "cohort_counts": metrics.cohort_counts(conn),
                 "recent": metrics.recent_ledger(conn, limit=12),
+                "policy_default": policies["default"],
+                "policy_overrides": policies["custom"],
             }
         )
         # Sparkbar geometry: 320-unit viewBox, fill width = rate × 320.
