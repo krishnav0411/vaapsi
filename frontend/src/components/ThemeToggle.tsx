@@ -16,6 +16,13 @@ type Theme = "light" | "dark";
 const STORAGE_KEY = "vaapsi-theme";
 const TRANSITION_MS = 200;
 
+/**
+ * The command palette toggles the theme through this window event instead
+ * of owning a second theme state — the toggle component remains the one
+ * source of truth (class flip + localStorage write live only here).
+ */
+export const THEME_TOGGLE_EVENT = "vaapsi:toggle-theme";
+
 function readStoredTheme(): Theme {
   try {
     return window.localStorage.getItem(STORAGE_KEY) === "dark" ? "dark" : "light";
@@ -28,6 +35,14 @@ function readStoredTheme(): Theme {
 export function ThemeToggle() {
   const [theme, setTheme] = useState<Theme>(readStoredTheme);
   const dark = theme === "dark";
+
+  useEffect(() => {
+    function onExternalToggle() {
+      setTheme((current) => (current === "dark" ? "light" : "dark"));
+    }
+    window.addEventListener(THEME_TOGGLE_EVENT, onExternalToggle);
+    return () => window.removeEventListener(THEME_TOGGLE_EVENT, onExternalToggle);
+  }, []);
 
   useEffect(() => {
     const root = document.documentElement;

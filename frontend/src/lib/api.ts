@@ -168,11 +168,174 @@ export function postKill(confirm: string): Promise<ModeResponse> {
 export function postDecide(
   approvalId: string,
   decision: "approve" | "reject",
+  note = "",
 ): Promise<unknown> {
   return fetchJson<unknown>(`/api/approvals/${encodeURIComponent(approvalId)}/decide`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ decision }),
+    body: JSON.stringify({ decision, note }),
+  });
+}
+
+// ── D8 ledger explorer (shapes read from api.py + tests/test_ledger_api.py) ──
+
+/** One block-explorer row: hashes truncated SERVER-SIDE (prev 12, hash 16). */
+export interface LedgerListItem {
+  seq: number;
+  ts_utc: string;
+  trigger_event: string;
+  actor: "agent" | "human";
+  outcome: string;
+  subscription_id: string;
+  prev_hash: string;
+  hash: string;
+}
+
+export interface LedgerListResponse {
+  rows: LedgerListItem[];
+  total: number;
+  chain_valid: boolean;
+}
+
+/** One FULL ledger row (GET /api/ledger/{seq}): every column, 64-char hashes. */
+export interface LedgerRowDetail {
+  seq: number;
+  action_id: string;
+  ts_utc: string;
+  subscription_id: string;
+  trigger_event: string;
+  policy_eval: unknown;
+  score: number | null;
+  features: unknown;
+  llm_request_hash: string | null;
+  llm_output_raw: unknown;
+  llm_model: string | null;
+  human_gate: boolean;
+  rzp_call: unknown;
+  outcome: string;
+  recovered_paise: number;
+  mode: string;
+  prev_hash: string;
+  row_hash: string;
+  prev_seq: number | null;
+  canonical_json: string;
+}
+
+export interface LedgerVerifyResponse {
+  valid: boolean;
+  rows: number;
+  broken_seq: number | null;
+  detail: string;
+}
+
+export interface TamperDemoResponse {
+  verdict: "tamper_detected" | "empty_ledger";
+  broken_seq: number | null;
+  field: string | null;
+  expected_value: number | null;
+  found_value: number | null;
+  stored_hash: string | null;
+  recomputed_hash: string | null;
+  verify_detail: string;
+  rows: number;
+  original_store_chain_valid: boolean;
+  original_rows: number;
+}
+
+// ── D8 approvals inbox ────────────────────────────────────────────────────
+
+export interface ApprovalSummary {
+  id: string;
+  episode_id: string;
+  subscription_id: string;
+  reason: string;
+  status: string;
+  created_ts_utc: string;
+  episode_state: string;
+  attempt_count: number;
+  tier: number | null;
+  amount_paise: number;
+  threshold_paise: number;
+  exceeds_threshold: boolean;
+  over_by_paise: number;
+  proposed_action: string;
+}
+
+export interface ApprovalsPendingResponse {
+  approvals: ApprovalSummary[];
+}
+
+export interface ApprovalDetailResponse {
+  approval: ApprovalSummary;
+  episode: EpisodeRow;
+  timeline: LedgerRow[];
+}
+
+// ── D8 drills console ─────────────────────────────────────────────────────
+
+export interface DrillRunResult {
+  drill_id: string;
+  passed: boolean;
+  summary: string;
+  evidence: Record<string, unknown>;
+  ran_ts_utc: string;
+  duration_ms: number;
+}
+
+export interface DrillInfo {
+  drill_id: string;
+  title: string;
+  description: string;
+  last_run: DrillRunResult | null;
+}
+
+export interface DrillsResponse {
+  drills: DrillInfo[];
+}
+
+export function getLedger(
+  params: { limit?: number; offset?: number } = {},
+  signal?: AbortSignal,
+): Promise<LedgerListResponse> {
+  const qs = new URLSearchParams();
+  if (params.limit !== undefined) qs.set("limit", `${params.limit}`);
+  if (params.offset !== undefined) qs.set("offset", `${params.offset}`);
+  return fetchJson<LedgerListResponse>(`/api/ledger?${qs.toString()}`, { signal });
+}
+
+export function getLedgerRow(seq: number, signal?: AbortSignal): Promise<LedgerRowDetail> {
+  return fetchJson<LedgerRowDetail>(`/api/ledger/${seq}`, { signal });
+}
+
+export function verifyLedger(signal?: AbortSignal): Promise<LedgerVerifyResponse> {
+  return fetchJson<LedgerVerifyResponse>("/api/ledger/verify", { signal });
+}
+
+export function runTamperDemo(): Promise<TamperDemoResponse> {
+  return fetchJson<TamperDemoResponse>("/api/ledger/tamper-demo", { method: "POST" });
+}
+
+export function getPendingApprovals(signal?: AbortSignal): Promise<ApprovalsPendingResponse> {
+  return fetchJson<ApprovalsPendingResponse>("/api/approvals/pending", { signal });
+}
+
+export function getApprovalDetail(
+  approvalId: string,
+  signal?: AbortSignal,
+): Promise<ApprovalDetailResponse> {
+  return fetchJson<ApprovalDetailResponse>(
+    `/api/approvals/${encodeURIComponent(approvalId)}/detail`,
+    { signal },
+  );
+}
+
+export function getDrills(signal?: AbortSignal): Promise<DrillsResponse> {
+  return fetchJson<DrillsResponse>("/api/drills", { signal });
+}
+
+export function runDrill(drillId: string): Promise<DrillRunResult> {
+  return fetchJson<DrillRunResult>(`/api/drills/${encodeURIComponent(drillId)}/run`, {
+    method: "POST",
   });
 }
 

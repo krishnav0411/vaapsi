@@ -4,13 +4,11 @@
  * dot, off the shared useFreshness clock: green pulse <60s, amber
  * 60–300s, red stale >300s), the mode badge (NORMAL neutral / DEGRADED
  * notice / KILLED negative), the static TEST MODE outline tag, the ⌘K
- * palette hint (a disabled placeholder — the palette lands next stage;
- * hovering, focusing or clicking it explains that) and the theme
- * toggle. Title follows the URL, not prop plumbing, so the shell stays
- * a single source of chrome truth.
+ * command-palette button (opens the shell-level CommandPalette) and the
+ * theme toggle. Title follows the URL, not prop plumbing, so the shell
+ * stays a single source of chrome truth.
  */
 
-import { useState } from "react";
 import { useLocation } from "react-router-dom";
 
 import { ModePill } from "@/components/StatusPill";
@@ -24,6 +22,9 @@ function pageTitle(pathname: string): string {
   if (pathname === "/episodes") return "Episodes";
   if (pathname.startsWith("/episodes/")) return "Episode detail";
   if (pathname === "/metrics") return "Metrics";
+  if (pathname === "/ledger") return "Ledger";
+  if (pathname === "/drills") return "Drills";
+  if (pathname === "/approvals") return "Approvals";
   return "Overview";
 }
 
@@ -57,37 +58,27 @@ function FreshnessChip() {
   );
 }
 
-function PaletteHint() {
-  const [pinned, setPinned] = useState(false);
+function PaletteButton({ onOpen }: { onOpen: () => void }) {
   return (
-    <span className="group relative flex">
-      <button
-        type="button"
-        aria-disabled="true"
-        aria-label="Command palette (next stage)"
-        onClick={(event) => {
-          event.preventDefault();
-          setPinned((value) => !value);
-        }}
-        className="hidden h-control-sm items-center rounded-button border border-border-normal px-8 font-mono text-xs text-text-subtle hover:border-border-hover sm:flex"
-      >
-        ⌘K
-      </button>
-      <span
-        role="tooltip"
-        className={cn(
-          "pointer-events-none absolute right-0 top-full z-50 mt-8 whitespace-nowrap rounded-button bg-text-normal px-8 py-4 text-xs font-medium text-canvas shadow-high",
-          "opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100",
-          pinned && "opacity-100",
-        )}
-      >
-        command palette: next stage
-      </span>
-    </span>
+    <button
+      type="button"
+      aria-label="Open command palette"
+      title="Command palette (⌘K / Ctrl+K)"
+      onClick={onOpen}
+      className="hidden h-control-sm items-center rounded-button border border-border-normal px-8 font-mono text-xs text-text-subtle hover:border-border-hover hover:bg-row-hover sm:flex"
+    >
+      ⌘K
+    </button>
   );
 }
 
-export function AppBar({ mode }: { mode: Mode | null }) {
+export function AppBar({
+  mode,
+  onOpenPalette,
+}: {
+  mode: Mode | null;
+  onOpenPalette: () => void;
+}) {
   const { pathname } = useLocation();
   return (
     <header className="sticky top-0 z-40 border-b border-border-subtle bg-surface">
@@ -101,7 +92,7 @@ export function AppBar({ mode }: { mode: Mode | null }) {
           <span className="rounded-pill border border-primary px-12 py-2 text-xs font-medium text-primary">
             TEST MODE
           </span>
-          <PaletteHint />
+          <PaletteButton onOpen={onOpenPalette} />
           <ThemeToggle />
         </div>
       </div>

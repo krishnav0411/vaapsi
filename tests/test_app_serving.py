@@ -187,3 +187,32 @@ class TestBladeDarkModeLaw:
             assert f"{token}:{frozen}" in normalized, (
                 f"light-mode {token} must stay byte-identical to {frozen}"
             )
+
+
+# ── D8 surfaces shipped in the dist (ledger / drills / approvals) ────────
+
+
+class TestD8SurfacesShipped:
+    """The D8 React surfaces must exist in the COMMITTED build: the three
+    routes registered in the bundle, the tamper-demo copy shipped (the
+    video-climax feature is really in the build), and the dark-law tests
+    above stay untouched and passing alongside."""
+
+    @staticmethod
+    def built_js() -> str:
+        assets = FRONTEND / "dist" / "assets"
+        js_files = sorted(assets.glob("*.js"))
+        assert js_files, "npm run build must emit hashed js under frontend/dist/assets"
+        return "\n".join(f.read_text(encoding="utf-8") for f in js_files)
+
+    def test_dist_registers_new_routes(self):
+        js = self.built_js()
+        for route in ("/ledger", "/drills", "/approvals"):
+            pattern = rf"path:\s*['\"]{route}['\"]"
+            assert re.search(pattern, js), f"built JS must register the {route} route"
+
+    def test_dist_js_contains_tamper_demo_copy(self):
+        assert "Prove it: tamper demo" in self.built_js()
+
+    def test_dist_js_contains_approvals_empty_state_copy(self):
+        assert "Nothing awaiting judgment" in self.built_js()

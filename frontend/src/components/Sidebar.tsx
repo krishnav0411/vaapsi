@@ -3,14 +3,10 @@
  * its tagline, the live nav items with active azure + tint + 2px left
  * indicator, and the bottom block carrying the live mode readout and the
  * kill switch (destructive outline). Nav state follows the router so the
- * highlight can never drift from the URL.
- *
- * Shell v2 additions: the FUTURE sections (Ledger, Drills, Approvals)
- * render as disabled entries with a "coming in this build" tooltip —
- * aria-disabled rather than disabled so the tooltip stays reachable by
- * keyboard — and on small viewports the sidebar slides off-canvas behind
- * a fixed toggle button (plain Tailwind, no new deps; on lg+ it is
- * permanently docked exactly as before).
+ * highlight can never drift from the URL. The D8 surfaces (Ledger,
+ * Drills, Approvals) are live routes, so they are first-class NavLinks.
+ * On small viewports the sidebar slides off-canvas behind a fixed toggle
+ * button (plain Tailwind, no new deps; on lg+ it is permanently docked).
  */
 
 import { useState } from "react";
@@ -35,38 +31,10 @@ const navItems = [
   { to: "/", label: "Overview", icon: Home, end: true },
   { to: "/episodes", label: "Episodes", icon: List, end: true },
   { to: "/metrics", label: "Metrics", icon: BarChart3, end: true },
+  { to: "/ledger", label: "Ledger", icon: BookOpen, end: true },
+  { to: "/drills", label: "Drills", icon: Repeat, end: true },
+  { to: "/approvals", label: "Approvals", icon: ClipboardCheck, end: true },
 ];
-
-/** Future sections — no routes yet by design; they land in a later stage. */
-const futureNavItems = [
-  { label: "Ledger", icon: BookOpen },
-  { label: "Drills", icon: Repeat },
-  { label: "Approvals", icon: ClipboardCheck },
-];
-
-function FutureNavItem({ label, icon: Icon }: { label: string; icon: typeof Home }) {
-  return (
-    <li>
-      <span className="group relative flex">
-        <button
-          type="button"
-          aria-disabled="true"
-          onClick={(event) => event.preventDefault()}
-          className="flex h-control-md w-full cursor-not-allowed items-center gap-8 rounded-button px-16 text-sm font-medium text-text-disabled"
-        >
-          <Icon className="h-16 w-16" aria-hidden />
-          {label}
-        </button>
-        <span
-          role="tooltip"
-          className="pointer-events-none absolute left-full top-1/2 z-50 ml-8 -translate-y-1/2 whitespace-nowrap rounded-button bg-text-normal px-8 py-4 text-xs font-medium text-canvas opacity-0 shadow-high group-focus-within:opacity-100 group-hover:opacity-100"
-        >
-          coming in this build
-        </span>
-      </span>
-    </li>
-  );
-}
 
 export function Sidebar({ mode, onKilled }: { mode: Mode | null; onKilled: () => void }) {
   const [open, setOpen] = useState(false);
@@ -127,9 +95,6 @@ export function Sidebar({ mode, onKilled }: { mode: Mode | null; onKilled: () =>
                   )}
                 </NavLink>
               </li>
-            ))}
-            {futureNavItems.map(({ label, icon: Icon }) => (
-              <FutureNavItem key={label} label={label} icon={Icon} />
             ))}
           </ul>
         </nav>
