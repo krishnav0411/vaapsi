@@ -3,6 +3,11 @@
 A recovery agent for failed Razorpay subscription charges. Built for the
 Razorpay AI Buildathon 2026 (Track 03), test-mode APIs only.
 
+**Live read-only demo:** https://vaapsi-6sdk.onrender.com/app (seeded
+sanitized data, every write route disabled, no credentials — the boot
+refuses if any are present). Free tier: first load after ~15 min idle
+wakes the service in a few seconds.
+
 When a subscription charge fails a few times, Razorpay halts the subscription.
 The money is usually still there; the customer just had an expired card or a
 dry UPI mandate. Nobody chases it. Someone has to notice, then email the

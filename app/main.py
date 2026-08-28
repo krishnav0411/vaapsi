@@ -11,7 +11,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request, Response
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.dashboard.api import api_router
@@ -125,6 +125,16 @@ FRONTEND_DIST = Path(__file__).resolve().parents[1] / "frontend" / "dist"
 _DIST_ASSETS = FRONTEND_DIST / "assets"
 if _DIST_ASSETS.is_dir():
     app.mount("/app/assets", StaticFiles(directory=_DIST_ASSETS), name="spa_assets")
+
+
+@app.get("/", include_in_schema=False)
+def root_redirect() -> Response:
+    """The product lives at /app; send bare-root visitors there.
+
+    A 404 on the marketing URL reads as "the deploy is broken" — the
+    dashboard is one redirect away, so it should just be there.
+    """
+    return RedirectResponse(url="/app", status_code=307)
 
 
 @app.get("/app", include_in_schema=False)
