@@ -7,7 +7,7 @@ tamper-evident ledger. Built for the Razorpay AI Buildathon 2026, Track 03.
 > Everyone is teaching agents to recover money. Vaapsi is the proof they
 > didn't message anyone they shouldn't have.
 
-**Live read-only demo:** https://vaapsi-6sdk.onrender.com/app; seeded
+**Live read-only demo:** https://vaapsi-6sdk.onrender.com/app — seeded
 sanitized data, every write route disabled, boot refuses with any provider
 credential present. Free tier: first load after ~15 min idle wakes the
 service in a few seconds.
@@ -18,6 +18,11 @@ service in a few seconds.
 | Halt events ingested | 15 |
 | Outreach to already-charged customers | **0** |
 | Recovered so far | ₹0, one live link awaiting payment |
+
+**Evidence in this README comes in three kinds, labeled as such:**
+`LIVE` — the test-mode run above, real Razorpay API traffic. `EVAL` — the
+offline 200-case pipeline evaluation, synthetic by design. `SCREENSHOT` —
+renders of the dashboard. Nothing in this file mixes the three.
 
 ## Why this needs proving
 
@@ -78,6 +83,51 @@ only, assigned alternately at creation.
 Reproduce the counts from a fresh clone: `make verify-chain` replays the
 audit ledger; the dashboard recomputes every metric from the store on load.
 
+## How the loop works, and who owns each step
+
+| Stage | Owner | What happens |
+|---|---|---|
+| Ingest | Deterministic | HMAC over raw bytes, idempotency on event id, shape validation |
+| Diagnose | Deterministic | failure classified from bounded webhook evidence |
+| Score | Deterministic | tier assigned from amount, failure history, age |
+| Decide | Deterministic | policy engine: caps, cooling, quiet hours, cohort |
+| Word | AI | model picks channel + message variant from an allowlist in code |
+| Approve | Human | everything above ₹500 waits for approve/reject |
+| Execute | Governed | payment link created via Razorpay API, payload archived |
+| Verify | Deterministic | `payment_link.paid` matched by notes round-trip, amount checked |
+| Attribute | Deterministic | one recovery stamped once, or nothing |
+
+```mermaid
+flowchart TD
+    RZ[Razorpay test mode events] --> WG[webhook receiver<br/>HMAC over raw bytes · idempotent]
+    WG --> SM[episode state machine<br/>NEW → DIAGNOSED → SCORED → SENT → VERIFIED → CLOSED]
+    SM --> PE[policy engine<br/>caps · cooling · quiet hours · gates]
+    PE -->|authorized| LLM[LLM picks channel + wording<br/>from an allowlist in code]
+    PE -->|above ₹500| HG[human approval queue]
+    LLM --> PL[payment link via Razorpay API]
+    HG -->|approved| PL
+    PL --> VC[verify consumer<br/>watches for the payment]
+    VC --> LED((hash-chained ledger<br/>every row covers the last))
+```
+
+The one-line version: the model reads a diagnosis and returns two fields.
+Both come from an allowlist in code. It never decides whether to act, never
+holds credentials, never calls Razorpay, cannot invent an amount, and its
+stale proposals are discarded when the subscription state moved underneath
+them. If it dies, returns garbage, or steps outside the allowlist, the run
+continues on fixed templates and the ledger says so.
+
+AI does not: decide financial truth, set retry timing, bend a cap, approve
+itself above ₹500, or recover anything on its own authority.
+
+Every state change appends one row to a SQLite ledger where each row's hash
+covers the previous row's hash. `make verify-chain` replays it and fails
+loudly if anything moved. The kill switch is engine-side: one env flag and
+every outbound action refuses, no matter what the dashboard or the model
+says. Public demo mode goes further: the boot refuses to start if any
+provider credential is present, the webhook receiver is never mounted, and
+every write route 404s.
+
 ## Offline pipeline evaluation
 
 A committed, reproducible offline evaluation of the decision pipeline
@@ -105,50 +155,35 @@ LLM flavors, the rules decide); the recovery draw is per (case, arm), so the
 residual spread between them is sampling noise, not signal.
 <!-- eval:end -->
 
-The honest reading: the agent does not beat the rules engine — the rules
-*are* the agent; the model only trims the wording. The distance between
+The honest reading: the agent does not beat the rules engine; the rules
+*are* the agent, and the model only trims the wording. The distance between
 `no_agent` and everything else is what bounded autonomy buys. What the model
 choice is worth lives in [DECISIONS.md](DECISIONS.md).
 
-## Where AI is used, and where it is not
+## What one episode looks like in the audit trail
 
-The model reads a diagnosis and returns two fields: channel and
-message_variant. Both come from an allowlist in code. It never decides
-whether to act, never holds credentials, never calls Razorpay, cannot
-invent an amount, and its stale proposals are discarded when the
-subscription state moved underneath them. If it dies, returns garbage, or
-steps outside the allowlist, the run continues on fixed templates and the
-ledger says so.
+Real rows from the store (test-mode ids), exactly as the ledger holds them:
 
-AI does not: decide financial truth, set retry timing, bend a cap, approve
-itself above ₹500, or recover anything on its own authority.
+| seq | outcome | note |
+|---|---|---|
+| 4 | EPISODE_CREATED | from `subscription.halted` |
+| 9 | EPISODE_DIAGNOSED | |
+| 10 | EPISODE_SCORED | tier 2, gentle variant |
+| 11 | EPISODE_SENT | payload carries `dispatch_error` (Razorpay 400, reference_id too long) |
+| 12 | DLQ_DRAINED | same payload, id repaired, link delivered |
 
-## How it's put together
+Each row also stores the full policy evaluation, the exact Razorpay request
+bytes, and the hash pair linking it to the previous row. `make verify-chain`
+replays all of it.
 
-```mermaid
-flowchart TD
-    RZ[Razorpay test mode events] --> WG[webhook receiver<br/>HMAC over raw bytes · idempotent]
-    WG --> SM[episode state machine]
-    SM --> PE[policy engine<br/>caps · cooling · quiet hours · gates]
-    PE -->|authorized| LLM[LLM picks channel + wording<br/>from an allowlist in code]
-    PE -->|above ₹500| HG[human approval queue]
-    LLM --> PL[payment link via Razorpay API]
-    HG -->|approved| PL
-    PL --> VC[verify consumer<br/>watches for the payment]
-    VC --> LED((hash-chained ledger<br/>every row covers the last))
-```
+## Run it
 
-Every state change appends one row to a SQLite ledger where each row's hash
-covers the previous row's hash. `make verify-chain` replays it and fails
-loudly if anything moved. The kill switch is engine-side: one env flag and
-every outbound action refuses, no matter what the dashboard or the model
-says. Public demo mode goes further: the boot refuses to start if any
-provider credential is present, the webhook receiver is never mounted, and
-every write route 404s.
-
-## Try it in two minutes
+Python 3.11+, Node 22+ for the frontend build (the built SPA ships in the
+repo, so the backend alone is enough to demo).
 
 ```bash
+git clone https://github.com/krishnav0411/vaapsi.git
+cd vaapsi
 cp .env.example .env      # add your Razorpay test keys
 make install
 make run                  # dashboard at http://localhost:8000/app
@@ -174,21 +209,31 @@ stored hash 592781fa… ≠ recomputed 3f9c22bd…   original store untouched
 One edited field, caught by arithmetic. `make verify-chain` before and after
 if you want the original store's word for it.
 
-## What one episode looks like in the audit trail
+## API surface
 
-Real rows from the store (test-mode ids), exactly as the ledger holds them:
+Read routes (all GET): `/health` · `/api/overview` · `/api/episodes` ·
+`/api/episodes/{id}` · `/api/metrics` · `/api/mode` · `/api/policy` ·
+`/api/ledger` · `/api/ledger/{seq}` · `/api/ledger/verify` ·
+`/api/approvals/pending` · `/api/drills`. The React dashboard consumes
+these at `/app`; a judge can walk the whole store with curl and no keys.
 
-| seq | outcome | note |
-|---|---|---|
-| 4 | EPISODE_CREATED | from `subscription.halted` |
-| 9 | EPISODE_DIAGNOSED | |
-| 10 | EPISODE_SCORED | tier 2, gentle variant |
-| 11 | EPISODE_SENT | payload carries `dispatch_error` (Razorpay 400, reference_id too long) |
-| 12 | DLQ_DRAINED | same payload, id repaired, link delivered |
+Write routes are the guarded ones: `POST /webhooks/razorpay` (HMAC over the
+exact raw body, idempotency on event id), `POST /api/kill` (requires
+`confirm: KILL`), `POST /api/approvals/{id}/decide`, `PUT
+/api/policy/{merchant_id}` (DEFAULT row refuses 403), `POST
+/api/drills/{id}/run` (isolated store only), and the tamper-demo endpoint
+(copy-only). In public demo mode every one of these 404s —
+the webhook receiver isn't even mounted at all.
 
-Each row also stores the full policy evaluation, the exact Razorpay request
-bytes, and the hash pair linking it to the previous row. `make verify-chain`
-replays all of it.
+## Deployment
+
+The hosted demo runs on Render's free tier from the committed
+[Dockerfile](Dockerfile) and [render.yaml](render.yaml): `VAAPSI_PUBLIC_DEMO=1`
+activates fail-closed mode, an ephemeral disk starts empty, and seed-on-boot
+builds the sanitized store through the real state machine before the first
+request. No credentials are configured on the instance, and the boot
+refuses to start if any appear. The same image runs locally with
+`docker build`.
 
 ## Screenshots
 
