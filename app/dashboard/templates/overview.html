@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}Overview{% endblock %}
+{% block content %}
+
+<h1 class="page-title">Recovery operations</h1>
+<p class="page-sub">Bounded recovery for failed Razorpay subscriptions — test mode, deterministic-first, every action ledger-proven.</p>
+
+<section class="stat-grid" aria-label="Key stats">
+  <div class="stat-card">
+    <span class="stat-label">Recovery rate · TREATMENT</span>
+    <span class="stat-number tnum">{{ m1_treatment[0] | pct }}</span>
+    <span class="stat-note caption">{{ m1_treatment[2] }}</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-label">Recovery rate · CONTROL</span>
+    <span class="stat-number tnum">{{ m1_control[0] | pct }}</span>
+    <span class="stat-note caption">{{ m1_control[2] }}</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-label">₹ recovered</span>
+    <span class="stat-number tnum">{{ recovered_paise | paise }}</span>
+    <span class="stat-note caption">sum of ledger recovered_paise</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-label">Open episodes</span>
+    <span class="stat-number tnum">{{ open_episodes }}</span>
+    <span class="stat-note caption">episodes that may still act</span>
+  </div>
+</section>
+
+<section class="section">
+  <h2 class="section-head">Cohort A/B — recovery rate</h2>
+  <div class="card cohort-card">
+    <div class="cohort-row">
+      <div class="cohort-head">
+        <span class="cohort-name">TREATMENT</span>
+        <span class="caption tnum">{{ cohort_counts.get('TREATMENT', 0) }} subscriptions</span>
+        <span class="cohort-rate tnum">{{ m1_treatment[0] | pct }}</span>
+      </div>
+      <svg class="sparkbar" viewBox="0 0 320 12" preserveAspectRatio="none" role="img" aria-label="Treatment recovery rate {{ m1_treatment[0] | pct }}">
+        <rect class="spark-track" x="0" y="1" width="320" height="12" rx="4"></rect>
+        <rect class="spark-fill spark-treatment" x="0" y="1" width="{{ treatment_bar }}" height="12" rx="4"></rect>
+      </svg>
+      <span class="caption">{{ m1_treatment[2] }}</span>
+    </div>
+    <div class="cohort-row">
+      <div class="cohort-head">
+        <span class="cohort-name">CONTROL</span>
+        <span class="caption tnum">{{ cohort_counts.get('CONTROL', 0) }} subscriptions</span>
+        <span class="cohort-rate tnum">{{ m1_control[0] | pct }}</span>
+      </div>
+      <svg class="sparkbar" viewBox="0 0 320 12" preserveAspectRatio="none" role="img" aria-label="Control recovery rate {{ m1_control[0] | pct }}">
+        <rect class="spark-track" x="0" y="1" width="320" height="12" rx="4"></rect>
+        <rect class="spark-fill spark-control" x="0" y="1" width="{{ control_bar }}" height="12" rx="4"></rect>
+      </svg>
+      <span class="caption">{{ m1_control[2] }}</span>
+    </div>
+    <p class="caption">Interleaved at creation (slot 0 → TREATMENT, slot 1 → CONTROL); assignment recorded at creation, never post-hoc.</p>
+  </div>
+</section>
+
+<section class="section">
+  <h2 class="section-head">Recent ledger</h2>
+  <div class="card">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>ts (IST)</th>
+          <th>subscription</th>
+          <th>trigger</th>
+          <th>outcome</th>
+          <th>mode</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in recent %}
+        <tr>
+          <td class="tnum mono ts-cell">{{ row.ts_utc | ist }}</td>
+          <td class="mono sub-id">{{ row.subscription_id }}</td>
+          <td>{{ row.trigger_event }}</td>
+          <td>{{ row.outcome }}</td>
+          <td><span class="badge {{ row.mode | badge }}">{{ row.mode }}</span></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="empty">No ledger rows yet — the audit chain starts with the first halt.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="section">
+  <h2 class="section-head">Kill switch</h2>
+  {% if mode == "KILLED" %}
+  <div class="card kill-card">
+    <p class="body">Kill switch is <span class="badge badge-danger">KILLED</span> — outreach, approvals and all outbound Razorpay calls are refused. To resume: clear the note in <code class="mono">.env</code>, ensure <code class="mono">VAAPSI_KILL_SWITCH</code> is unset, and restart the process.</p>
+  </div>
+  {% else %}
+  <div class="card kill-card">
+    <p class="caption">Sets VAAPSI_KILL_SWITCH semantics on the running process: policy refuses ALL outbound actions; human approvals are left PENDING. One-way until restart.</p>
+    <form method="post" action="/dashboard/kill" class="kill-form">
+      <input class="kill-input mono" type="text" name="confirm" placeholder="type KILL" autocomplete="off" aria-label="Confirmation text">
+      <button type="submit" class="btn btn-danger">Activate kill switch</button>
+    </form>
+  </div>
+  {% endif %}
+</section>
+
+{% endblock %}

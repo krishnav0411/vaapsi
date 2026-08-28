@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}Metrics{% endblock %}
+{% block content %}
+
+<h1 class="page-title">Experiment metrics</h1>
+<p class="page-sub">Pre-registered definitions from <span class="mono">EXPERIMENT.md</span> (M1–M5), rendered from the ledger — no metric invented, no number rounded above the percentage.</p>
+
+{% if m5[0] == 0 %}
+<div class="banner-inline banner-ok" role="status">
+  <strong>0 false outreach</strong> — every outreach was checked against the stop-event voids in the ledger ({{ m5[1] }} stop events observed). Ledger-proven.
+</div>
+{% else %}
+<div class="banner-inline banner-alert" role="alert">
+  <strong>{{ m5[0] }} false outreach</strong> — a protocol violation was recorded; it will be published in RESULTS.md, not dropped.
+</div>
+{% endif %}
+
+<section class="stat-grid stat-grid-3" aria-label="M1 recovery rate">
+  <div class="stat-card">
+    <span class="stat-label">M1 · Recovery rate · TREATMENT</span>
+    <span class="stat-number tnum">{{ m1_treatment[0] | pct }}</span>
+    <span class="stat-note caption">{{ m1_treatment[2] }}</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-label">M1 · Recovery rate · CONTROL</span>
+    <span class="stat-number tnum">{{ m1_control[0] | pct }}</span>
+    <span class="stat-note caption">{{ m1_control[2] }}</span>
+  </div>
+</section>
+
+<section class="section">
+  <h2 class="section-head">All metrics</h2>
+  <div class="card">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>metric</th>
+          <th>value</th>
+          <th>n</th>
+          <th>note</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="tnum mono">M1</td>
+          <td>Recovery rate (primary) — per cohort</td>
+          <td class="tnum stat-cell">T {{ m1_treatment[0] | pct }} · C {{ m1_control[0] | pct }}</td>
+          <td class="tnum">{{ m1_treatment[1] + m1_control[1] }}</td>
+          <td class="caption">halted subs reaching charged/paid within 7 days ÷ total halted</td>
+        </tr>
+        <tr>
+          <td class="tnum mono">M2</td>
+          <td>₹ recovered — per cohort</td>
+          <td class="tnum stat-cell">T {{ m2_treatment[0] | paise }} · C {{ m2_control[0] | paise }}</td>
+          <td class="tnum">{{ m2_treatment[1] + m2_control[1] }}</td>
+          <td class="caption">ledger recovered_paise, integer paise</td>
+        </tr>
+        <tr>
+          <td class="tnum mono">M3</td>
+          <td>Time-to-recover (median)</td>
+          <td class="tnum stat-cell">{{ m3[0] | hours }}</td>
+          <td class="tnum">{{ m3[1] }}</td>
+          <td class="caption">{{ m3[2] }}</td>
+        </tr>
+        <tr>
+          <td class="tnum mono">M4</td>
+          <td>Outreach efficiency</td>
+          <td class="tnum stat-cell">{{ m4[0] | pct }}</td>
+          <td class="tnum">{{ m4[1] }}</td>
+          <td class="caption">{{ m4[2] }}</td>
+        </tr>
+        <tr>
+          <td class="tnum mono">M5</td>
+          <td>False outreach (must be 0)</td>
+          <td class="tnum stat-cell">{{ m5[0] }}</td>
+          <td class="tnum">{{ m5[1] }}</td>
+          <td class="caption">{{ m5[2] }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="section">
+  <p class="caption freshness">Data freshness: {{ ledger_count }} ledger rows · newest row <span class="tnum mono">{{ newest_ts | ist }}</span> · page rendered <span class="tnum">{{ updated_ist }} IST</span> · auto-refreshes every 30&nbsp;s.</p>
+</section>
+
+{% endblock %}

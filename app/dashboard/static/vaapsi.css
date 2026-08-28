@@ -1,0 +1,526 @@
+/* Vaapsi dashboard — Stripe-inspired token system (all tokens frozen in this file)
+   the contract; if CSS and that file disagree, that file wins).
+   Tokens below are copied verbatim from the contract's §1. */
+
+:root {
+  /* brand */
+  --vaapsi-purple: #533afd;        /* primary CTA, links, active states */
+  --vaapsi-purple-hover: #4434d4;
+  --vaapsi-purple-light: #b9b9f9;  /* subdued hover bg, ghost borders */
+  --vaapsi-navy: #061b31;          /* headings — NEVER #000 */
+  --vaapsi-brand-dark: #1c1e54;    /* dark sections / header band */
+  /* text */
+  --vaapsi-label: #273951;
+  --vaapsi-body: #64748d;
+  /* surfaces */
+  --vaapsi-border: #e5edf5;
+  --vaapsi-bg: #ffffff;
+  /* status */
+  --vaapsi-success-bg: rgba(21, 190, 83, 0.2);
+  --vaapsi-success-text: #108c3d;
+  --vaapsi-success-border: rgba(21, 190, 83, 0.4);
+  --vaapsi-warn: #9b6829;          /* lemon — GATED/warning */
+  --vaapsi-danger: #ea2261;        /* ruby — decorative/alert accents only */
+  /* shadows — the signature, exact */
+  --vaapsi-shadow-elevated: rgba(50, 50, 93, 0.25) 0px 30px 45px -30px,
+                            rgba(0, 0, 0, 0.1) 0px 18px 36px -18px;
+  --vaapsi-shadow-standard: rgba(23, 23, 23, 0.08) 0px 15px 35px 0px;
+  --vaapsi-shadow-ambient: rgba(23, 23, 23, 0.06) 0px 3px 6px;
+  /* radii — 4-8px only, never pills */
+  --vaapsi-r-sm: 4px;
+  --vaapsi-r-md: 5px;
+  --vaapsi-r-lg: 6px;
+  --vaapsi-r-xl: 8px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--vaapsi-bg);
+  color: var(--vaapsi-navy);
+  font-family: 'Source Sans 3', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-feature-settings: "ss01";
+  font-weight: 300;
+  -webkit-font-smoothing: antialiased;
+}
+
+.mono {
+  font-family: 'Source Code Pro', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.tnum { font-variant-numeric: tabular-nums; }
+
+/* ── Type scale (§3 — weight 300 is the voice, headlines never bold) ── */
+
+.page-title {
+  font-size: 32px;
+  font-weight: 300;
+  letter-spacing: -0.64px;
+  color: var(--vaapsi-navy);
+  margin: 0 0 4px;
+}
+
+.section-head {
+  font-size: 22px;
+  font-weight: 300;
+  letter-spacing: -0.22px;
+  color: var(--vaapsi-navy);
+  margin: 0 0 12px;
+}
+
+.stat-number {
+  display: block;
+  font-size: 40px;
+  font-weight: 300;
+  letter-spacing: -0.8px;
+  color: var(--vaapsi-navy);
+  line-height: 1.15;
+}
+
+.body { font-size: 16px; font-weight: 300; color: var(--vaapsi-body); margin: 0 0 8px; }
+
+.label {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--vaapsi-label);
+}
+
+.caption {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--vaapsi-body);
+  margin: 0;
+}
+
+a { color: var(--vaapsi-purple); text-decoration: none; }
+a:hover { color: var(--vaapsi-purple-hover); text-decoration: underline; }
+
+code {
+  font-size: 12px;
+  color: var(--vaapsi-label);
+  background: #f6f9fc;
+  border-radius: var(--vaapsi-r-sm);
+  padding: 1px 4px;
+}
+
+/* ── Dark header (§4) ─────────────────────────────────────────────────── */
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--vaapsi-brand-dark);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: none;
+}
+
+.topbar-inner {
+  max-width: 1080px;
+  margin: 0 auto;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  padding: 0 24px;
+}
+
+.logotype {
+  color: #ffffff;
+  font-size: 18px;
+  font-weight: 400;
+  letter-spacing: -0.2px;
+}
+
+.topnav { display: flex; gap: 24px; flex: 1; }
+
+.topnav a {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 14px;
+  font-weight: 400;
+  padding: 4px 0;
+  border-bottom: 2px solid transparent;
+}
+
+.topnav a:hover { color: #ffffff; text-decoration: none; }
+
+.topnav a.active {
+  color: #ffffff;
+  border-bottom-color: var(--vaapsi-purple-light);
+}
+
+.updated { color: rgba(255, 255, 255, 0.7); }
+
+/* ── Layout (§5) ──────────────────────────────────────────────────────── */
+
+.content {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 32px 24px 64px;
+}
+
+.section { margin: 40px 0; }
+
+.page-sub {
+  font-size: 16px;
+  font-weight: 300;
+  color: var(--vaapsi-body);
+  margin: 0 0 24px;
+}
+
+.crumb { margin-bottom: 16px; }
+
+.notice {
+  color: var(--vaapsi-label);
+  background: #f6f9fc;
+  border: 1px solid var(--vaapsi-border);
+  border-radius: var(--vaapsi-r-md);
+  padding: 8px 12px;
+  margin: 0 0 24px;
+}
+
+/* ── Mode banners (§4: DEGRADED lemon strip, KILLED ruby strip) ──────── */
+
+.banner {
+  padding: 10px 24px;
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.banner-killed {
+  background: rgba(234, 34, 97, 0.12);
+  color: var(--vaapsi-navy);
+  border-bottom: 1px solid rgba(234, 34, 97, 0.4);
+}
+
+.banner-degraded {
+  background: rgba(155, 104, 41, 0.15);
+  color: var(--vaapsi-navy);
+  border-bottom: 1px solid rgba(155, 104, 41, 0.35);
+}
+
+.banner strong { font-weight: 600; }
+
+.banner-ok,
+.banner-alert {
+  border-radius: var(--vaapsi-r-md);
+  padding: 10px 16px;
+  font-size: 14px;
+  margin: 24px 0;
+}
+
+.banner-ok {
+  background: var(--vaapsi-success-bg);
+  color: var(--vaapsi-success-text);
+  border: 1px solid var(--vaapsi-success-border);
+}
+
+.banner-alert {
+  background: rgba(234, 34, 97, 0.12);
+  color: var(--vaapsi-navy);
+  border: 1px solid rgba(234, 34, 97, 0.4);
+}
+
+/* ── Stat cards (§4: elevated shadow, radius 6, 20-24px padding) ─────── */
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 20px;
+  margin: 32px 0;
+}
+
+.stat-card {
+  background: #ffffff;
+  border: 1px solid var(--vaapsi-border);
+  border-radius: var(--vaapsi-r-lg);
+  box-shadow: var(--vaapsi-shadow-elevated);
+  padding: 22px 24px;
+}
+
+.stat-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--vaapsi-body);
+  margin-bottom: 6px;
+}
+
+.stat-note { display: block; margin-top: 6px; }
+
+/* ── Cards ────────────────────────────────────────────────────────────── */
+
+.card {
+  background: #ffffff;
+  border: 1px solid var(--vaapsi-border);
+  border-radius: var(--vaapsi-r-lg);
+  box-shadow: var(--vaapsi-shadow-ambient);
+  padding: 20px 24px;
+}
+
+/* ── Cohort A/B panel + sparkbars ─────────────────────────────────────── */
+
+.cohort-row { margin-bottom: 20px; }
+
+.cohort-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.cohort-name {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--vaapsi-label);
+  min-width: 96px;
+}
+
+.cohort-rate { margin-left: auto; font-size: 14px; color: var(--vaapsi-navy); }
+
+.sparkbar { display: block; width: 100%; height: 14px; }
+
+.spark-track { fill: #f6f9fc; stroke: var(--vaapsi-border); stroke-width: 1; }
+
+.spark-fill { transition: width 0.3s ease; }
+
+.spark-treatment { fill: var(--vaapsi-purple); }
+
+.spark-control { fill: var(--vaapsi-purple-light); }
+
+/* ── Tables (§4) ──────────────────────────────────────────────────────── */
+
+.table { width: 100%; border-collapse: collapse; }
+
+.table th {
+  font-size: 13px;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--vaapsi-label);
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--vaapsi-border);
+}
+
+.table td {
+  font-size: 14px;
+  font-weight: 300;
+  color: var(--vaapsi-navy);
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--vaapsi-border);
+}
+
+.table tbody tr:last-child td { border-bottom: none; }
+
+.sub-id { font-size: 12px; font-weight: 500; color: var(--vaapsi-label); }
+
+.row-link { font-size: 12px; font-weight: 500; }
+
+.empty { color: var(--vaapsi-body); }
+
+/* ── State badges (§4: radius 4px, padding 1px 6px, 10-11px) ─────────── */
+
+.badge {
+  display: inline-block;
+  border-radius: var(--vaapsi-r-sm);
+  padding: 1px 6px;
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.badge-lg { font-size: 13px; padding: 3px 10px; }
+
+.badge-success {
+  background: var(--vaapsi-success-bg);
+  color: var(--vaapsi-success-text);
+  border: 1px solid var(--vaapsi-success-border);
+}
+
+.badge-purple {
+  background: rgba(83, 58, 253, 0.1);
+  color: var(--vaapsi-purple);
+  border: 1px solid var(--vaapsi-purple-light);
+}
+
+.badge-warn {
+  background: rgba(155, 104, 41, 0.15);
+  color: var(--vaapsi-warn);
+  border: 1px solid rgba(155, 104, 41, 0.35);
+}
+
+.badge-slate,
+.badge-plain {
+  background: #f6f9fc;
+  color: var(--vaapsi-body);
+  border: 1px solid var(--vaapsi-border);
+}
+
+.badge-new {
+  background: transparent;
+  color: var(--vaapsi-body);
+  border: 1px solid var(--vaapsi-border);
+}
+
+.badge-danger {
+  background: rgba(234, 34, 97, 0.12);
+  color: var(--vaapsi-danger);
+  border: 1px solid rgba(234, 34, 97, 0.4);
+}
+
+/* ── Buttons (§4: radius 4, no pills) ─────────────────────────────────── */
+
+.btn {
+  display: inline-block;
+  border-radius: var(--vaapsi-r-sm);
+  padding: 8px 16px;
+  font-family: inherit;
+  font-feature-settings: "ss01";
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.2;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+
+.btn-primary {
+  background: var(--vaapsi-purple);
+  color: #ffffff;
+}
+
+.btn-primary:hover { background: var(--vaapsi-purple-hover); }
+
+.btn-ghost {
+  background: transparent;
+  border: 1px solid var(--vaapsi-purple-light);
+  color: var(--vaapsi-purple);
+}
+
+.btn-ghost:hover { background: rgba(83, 58, 253, 0.05); }
+
+.btn-danger {
+  background: transparent;
+  border: 1px solid var(--vaapsi-danger);
+  color: var(--vaapsi-danger);
+}
+
+.btn-danger:hover { background: rgba(234, 34, 97, 0.06); }
+
+/* ── Filters ──────────────────────────────────────────────────────────── */
+
+.filters {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 20px;
+}
+
+.filters select {
+  font-family: inherit;
+  font-feature-settings: "ss01";
+  font-size: 14px;
+  font-weight: 300;
+  color: var(--vaapsi-label);
+  background: #ffffff;
+  border: 1px solid var(--vaapsi-border);
+  border-radius: var(--vaapsi-r-sm);
+  padding: 6px 10px;
+}
+
+/* ── Timeline (§4: 10px dot, 1px line, mono metadata) ────────────────── */
+
+.timeline { list-style: none; margin: 0; padding: 0; }
+
+.timeline-node {
+  position: relative;
+  display: flex;
+  gap: 14px;
+  padding: 0 0 24px 0;
+  border-left: 1px solid var(--vaapsi-border);
+  margin-left: 5px;
+  padding-left: 20px;
+}
+
+.timeline-node:last-child { border-bottom: none; padding-bottom: 4px; }
+
+.dot {
+  position: absolute;
+  left: -5px;
+  top: 4px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+
+.dot-success { background: var(--vaapsi-success-bg); border: 1px solid var(--vaapsi-success-text); }
+.dot-purple { background: rgba(83, 58, 253, 0.1); border: 1px solid var(--vaapsi-purple); }
+.dot-warn { background: rgba(155, 104, 41, 0.15); border: 1px solid var(--vaapsi-warn); }
+.dot-danger { background: rgba(234, 34, 97, 0.12); border: 1px solid var(--vaapsi-danger); }
+.dot-slate { background: #f6f9fc; border: 1px solid var(--vaapsi-border); }
+
+.node-body { flex: 1; }
+
+.node-title {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--vaapsi-navy);
+  margin: 0 0 2px;
+}
+
+.node-trigger { color: var(--vaapsi-body); font-weight: 300; }
+
+.node-meta {
+  font-size: 12px;
+  color: var(--vaapsi-body);
+  margin: 0 0 2px;
+}
+
+.node-policy {
+  font-size: 12px;
+  color: var(--vaapsi-body);
+  margin: 0;
+}
+
+/* ── Detail header + approvals ────────────────────────────────────────── */
+
+.detail-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.approval-card { border-left: 3px solid var(--vaapsi-warn); }
+
+.approval-actions { display: flex; gap: 12px; margin-top: 14px; }
+
+/* ── Kill switch (danger is ruby OUTLINE only, never pre-filled) ─────── */
+
+.kill-form { display: flex; gap: 12px; margin-top: 14px; }
+
+.kill-input {
+  width: 160px;
+  border: 1px solid var(--vaapsi-border);
+  border-radius: var(--vaapsi-r-sm);
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--vaapsi-label);
+}
+
+.kill-input:focus {
+  outline: none;
+  border-color: var(--vaapsi-purple-light);
+}
+
+/* ── Overview grid collapse (§5: 2×2 under 900px) ────────────────────── */
+
+@media (max-width: 900px) {
+  .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .topbar-inner { gap: 16px; }
+  .updated { display: none; }
+}

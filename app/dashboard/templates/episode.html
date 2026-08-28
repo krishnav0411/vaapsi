@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Vaapsi — Episode {{ episode["id"] }}{% endblock %}
+{% block nav_episodes %}active{% endblock %}
+
+{% block page_head %}
+<h1 class="page-title">Episode <span class="mono code-id">{{ episode["id"] }}</span>
+  <span class="badge badge-{{ episode['state']|lower }}">{{ episode["state"] }}</span>
+</h1>
+{% endblock %}
+
+{% block content %}
+<div class="detail-layout">
+  <section>
+    <h2 class="section-head">Agent timeline</h2>
+    <ul class="timeline">
+      {% for node in nodes %}
+      <li class="tl-node">
+        <span class="tl-dot dot-{{ (node.state or 'none')|lower }}"></span>
+        <div class="tl-title">{{ node["trigger_event"] }}</div>
+        <div class="tl-meta tnum">
+          <span class="badge badge-{{ (node.state or 'new')|lower }}">{{ node["outcome"] }}</span>
+          <span class="badge {% if node['mode'] == 'KILLED' %}badge-killed{% elif node['mode'] == 'DEGRADED' %}badge-gated{% else %}badge-mode{% endif %}">{{ node["mode"] }}</span>
+          {% if node["human_gate"] %}<span class="badge badge-gated">human gate</span>{% endif %}
+          {{ node["ts_utc"] }}
+        </div>
+        <div class="tl-eval">
+          {% if node["policy_eval"].get("decision") %}
+            <span class="label">{{ node["policy_eval"]["decision"] }}</span>
+          {% endif %}
+          {% if node["policy_eval"].get("reason") %} · {{ node["policy_eval"]["reason"] }}{% endif %}
+          {% if node["policy_eval"].get("from_state") %} · {{ node["policy_eval"]["from_state"] }} → {{ node["policy_eval"].get("to_state", "?") }}{% endif %}
+          {% if node["policy_eval"].get("approval_id") %} · <span class="mono code-id">{{ node["policy_eval"]["approval_id"] }}</span>{% endif %}
+        </div>
+      </li>
+      {% else %}
+      <li class="tl-node"><div class="caption">No ledger rows for this episode's cycle.</div></li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <aside>
+    <div class="panel">
+      <span class="label">Episode</span>
+      <div class="kv"><span class="label">Subscription</span><span class="mono code-id">{{ episode["subscription_id"] }}</span></div>
+      <div class="kv"><span class="label">Cohort</span><span>{{ episode["cohort"] or "—" }}</span></div>
+      <div class="kv"><span class="label">Attempts</span><span class="tnum">{{ episode["attempt_count"] }}</span></div>
+      <div class="kv"><span class="label">Halted (UTC)</span><span class="tnum mono">{{ episode["halt_ts_utc"] }}</span></div>
+      <div class="kv"><span class="label">Updated (UTC)</span><span class="tnum mono">{{ episode["updated_ts_utc"] }}</span></div>
+      {% if episode["void_reason"] %}
+      <div class="kv"><span class="label">Void reason</span><span>{{ episode["void_reason"] }}</span></div>
+      {% endif %}
+    </div>
+
+    {% if approval %}
+    <div class="panel approval-panel">
+      <span class="label">Human approval pending</span>
+      <p class="tl-eval">{{ approval["reason"] }} · <span class="mono code-id">{{ approval["id"] }}</span></p>
+      <p class="caption">Approving dispatches the recovery payment link (offline stub in demo); rejecting closes the episode as a deliberate human end.</p>
+      <div class="approval-actions">
+        <form method="post" action="/dashboard/episodes/{{ episode['id'] }}/decide">
+          <input type="hidden" name="approval_id" value="{{ approval['id'] }}">
+          <input type="hidden" name="decision" value="approve">
+          <button type="submit" class="btn btn-primary">Approve</button>
+        </form>
+        <form method="post" action="/dashboard/episodes/{{ episode['id'] }}/decide">
+          <input type="hidden" name="approval_id" value="{{ approval['id'] }}">
+          <input type="hidden" name="decision" value="reject">
+          <button type="submit" class="btn btn-ghost">Reject</button>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+  </aside>
+</div>
+{% endblock %}

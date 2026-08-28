@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="refresh" content="30">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Overview{% endblock %} · Vaapsi</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@300;400;500;600&family=Source+Code+Pro:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/dashboard/static/vaapsi.css">
+</head>
+<body>
+  {% if mode == "KILLED" %}
+  <div class="banner banner-killed" role="alert">
+    <strong>Engine KILLED</strong> — every outbound action is refused until the process is restarted without the kill switch.
+  </div>
+  {% elif mode == "DEGRADED" %}
+  <div class="banner banner-degraded" role="status">
+    <strong>DEGRADED</strong> — LLM unavailable; decisions falling back to deterministic rules.
+  </div>
+  {% endif %}
+
+  <header class="topbar">
+    <div class="topbar-inner">
+      <span class="logotype">Vaapsi</span>
+      <nav class="topnav">
+        <a href="/dashboard" {% if nav == 'overview' %}class="active" aria-current="page"{% endif %}>Overview</a>
+        <a href="/dashboard/episodes" {% if nav == 'episodes' %}class="active" aria-current="page"{% endif %}>Episodes</a>
+        <a href="/dashboard/metrics" {% if nav == 'metrics' %}class="active" aria-current="page"{% endif %}>Metrics</a>
+      </nav>
+      <span class="updated caption mono">updated {{ updated_ist }} IST</span>
+    </div>
+  </header>
+
+  <main class="content">
+    {% if notice %}<p class="notice caption">{{ notice }}</p>{% endif %}
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

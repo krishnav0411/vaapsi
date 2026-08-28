@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Episode {{ episode.id }}{% endblock %}
+{% block content %}
+
+<p class="crumb caption"><a href="/dashboard/episodes">← All episodes</a></p>
+<div class="detail-head">
+  <h1 class="page-title mono">{{ episode.id }}</h1>
+  <span class="badge badge-lg {{ episode.state | badge }}">{{ episode.state }}</span>
+  {% if approval %}<span class="badge badge-warn">PENDING APPROVAL</span>{% endif %}
+</div>
+<p class="page-sub mono">{{ episode.subscription_id }} · cohort {{ episode.cohort or "—" }} · halted <span class="tnum">{{ episode.halt_ts_utc | ist }}</span> · <span class="tnum">{{ episode.attempt_count }}</span> attempt{{ '' if episode.attempt_count == 1 else 's' }}</p>
+{% if episode.void_reason %}<p class="page-sub">Voided by stop event: <strong>{{ episode.void_reason }}</strong> — never chase a paying or closed customer.</p>{% endif %}
+
+{% if approval %}
+<section class="section">
+  <h2 class="section-head">Approval required</h2>
+  <div class="card approval-card">
+    <p class="body">This outreach is held at the human gate: <span class="mono">{{ approval.reason }}</span> — it does not leave until a human decides.</p>
+    <p class="caption">approval <span class="mono">{{ approval.id }}</span> · raised <span class="tnum mono">{{ approval.created_ts_utc | ist }}</span></p>
+    <div class="approval-actions">
+      <form method="post" action="/dashboard/approvals/{{ approval.id }}/approve">
+        <button type="submit" class="btn btn-primary">Approve — dispatch outreach</button>
+      </form>
+      <form method="post" action="/dashboard/approvals/{{ approval.id }}/reject">
+        <button type="submit" class="btn btn-ghost">Reject — close without outreach</button>
+      </form>
+    </div>
+  </div>
+</section>
+{% endif %}
+
+<section class="section">
+  <h2 class="section-head">Agent timeline</h2>
+  <div class="card">
+    <ol class="timeline">
+      {% for row in timeline %}
+      <li class="timeline-node">
+        <span class="dot {{ row.outcome | dot }}"></span>
+        <div class="node-body">
+          <p class="node-title">{{ row.outcome }}{% if row.trigger_event and row.trigger_event != row.outcome %} <span class="node-trigger">· {{ row.trigger_event }}</span>{% endif %}</p>
+          <p class="node-meta mono tnum">{{ row.ts_utc | ist }} · <span class="badge {{ row.mode | badge }}">{{ row.mode }}</span>{% if row.score is not none %} · score {{ '%.2f' % row.score }}{% endif %}{% if row.human_gate %} · human gate{% endif %}{% if row.recovered_paise %} · <span class="tnum">{{ row.recovered_paise | paise }}</span>{% endif %}</p>
+          <p class="node-policy mono">{{ row.policy_eval | policy_summary }}</p>
+        </div>
+      </li>
+      {% else %}
+      <li class="timeline-node"><span class="dot dot-slate"></span><div class="node-body"><p class="node-title">No ledger rows for this cycle yet.</p></div></li>
+      {% endfor %}
+    </ol>
+  </div>
+</section>
+
+{% endblock %}

@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Episodes{% endblock %}
+{% block content %}
+
+<h1 class="page-title">Episodes</h1>
+<p class="page-sub">One bounded recovery cycle per halt — every state change is a ledger row.</p>
+
+<form method="get" action="/dashboard/episodes" class="filters">
+  <label class="caption" for="f-state">state</label>
+  <select id="f-state" name="state">
+    <option value="">all states</option>
+    {% for s in states %}
+    <option value="{{ s }}" {% if f_state == s %}selected{% endif %}>{{ s }}</option>
+    {% endfor %}
+  </select>
+  <label class="caption" for="f-cohort">cohort</label>
+  <select id="f-cohort" name="cohort">
+    <option value="">both cohorts</option>
+    <option value="TREATMENT" {% if f_cohort == 'TREATMENT' %}selected{% endif %}>TREATMENT</option>
+    <option value="CONTROL" {% if f_cohort == 'CONTROL' %}selected{% endif %}>CONTROL</option>
+  </select>
+  <button type="submit" class="btn btn-ghost">Filter</button>
+  {% if f_state or f_cohort %}
+  <a class="caption filter-clear" href="/dashboard/episodes">clear</a>
+  {% endif %}
+</form>
+
+<div class="card">
+  <table class="table">
+    <thead>
+      <tr>
+        <th>episode</th>
+        <th>subscription</th>
+        <th>cohort</th>
+        <th>state</th>
+        <th>halted (IST)</th>
+        <th>attempts</th>
+        <th>updated (IST)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for ep in episodes %}
+      <tr>
+        <td class="mono"><a class="row-link" href="/dashboard/episodes/{{ ep.id }}">{{ ep.id }}</a></td>
+        <td class="mono sub-id">{{ ep.subscription_id }}</td>
+        <td>{{ ep.cohort or "—" }}</td>
+        <td>
+          <span class="badge {{ ep.state | badge }}">{{ ep.state }}</span>
+          {% if ep.pending_approval %}<span class="badge badge-warn">PENDING APPROVAL</span>{% endif %}
+        </td>
+        <td class="tnum mono">{{ ep.halt_ts_utc | ist }}</td>
+        <td class="tnum">{{ ep.attempt_count }}</td>
+        <td class="tnum mono">{{ ep.updated_ts_utc | ist }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="empty">No episodes{{ ' match these filters' if f_state or f_cohort else ' yet' }} — episodes open when a subscription halts.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}
