@@ -150,6 +150,7 @@ def decide(
     approved: bool,
     *,
     client: ActionClient | None = None,
+    note: str = "",
 ) -> dict[str, Any]:
     """Apply exactly one human decision to a PENDING approval.
 
@@ -158,8 +159,11 @@ def decide(
     row carrying the approval evidence and the exact Razorpay payload);
     REJECTED → GATED → CLOSED with ledger outcome 'human_rejected' (one
     ledger row). The approvals row is stamped with the status and
-    decided_ts_utc in the same transaction. Any second decide on the same
-    approval raises DoubleDecisionError; unknown ids raise
+    decided_ts_utc in the same transaction. `note` is the human's stated
+    reason (the D8 approvals-inbox capture): when non-empty it rides the
+    decision's ledger evidence as decision_note, so the chain records not
+    just the verdict but the operator's stated why. Any second decide on
+    the same approval raises DoubleDecisionError; unknown ids raise
     ApprovalNotFoundError; a GATED episode that has moved (e.g. voided by
     a stop event while pending) raises ApprovalError with nothing written.
     """
@@ -181,6 +185,9 @@ def decide(
 
     now = _utc_now_iso()
     evidence = {"approval_id": approval_id, "gate_reason": approval["reason"]}
+    decision_note = note.strip()
+    if decision_note:
+        evidence["decision_note"] = decision_note
     if approved:
         action_client = client if client is not None else RecoveryLinkActionClient(client=None)
         policy_decision = PolicyDecision(
