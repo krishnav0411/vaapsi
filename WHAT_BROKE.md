@@ -78,21 +78,22 @@ failure story is part of its safety evidence.
 - **Root cause:** applying a second patch against stale in-memory context
   after the first had shifted the surrounding lines.
 - **How it was caught:** suite went red within one run.
-- **Fix:** re-read before every targeted edit; the conductor workflow now
-  re-reads any file between sequential patches.
+- **Fix:** re-read the file from disk before every targeted edit; sequential
+  patches now always operate on the current on-disk state, never memory.
 - **Lesson:** optimistic editing is fine for prose, never for code paths
   under test.
 
-### 6. Background-run watcher missed exits (notify died silently)
+### 6. Long build step looked alive after it had already exited
 
 - **What broke:** a long build step completed but the completion signal never
   fired; the run looked alive while actually finished.
-- **Root cause:** output-pattern watching on a process that exited between
-  polls; the watcher's trigger never matched.
-- **How it was caught:** the gate check — git status + test count after every
-  run — noticed nothing had landed.
-- **Fix:** completion notifications replaced pattern-watching for bounded
-  tasks; every engine run ends with a mandatory gate check regardless of exit
+- **Root cause:** the build script's completion was detected by grepping its
+  streaming output for a phrase; the process exited between polls and the
+  phrase never appeared, so a finished run read as still-running.
+- **How it was caught:** the after-every-step gate (git status + test count)
+  noticed nothing had landed.
+- **Fix:** every long step now runs to a real exit and the step ends with a
+  mandatory gate check — git status plus the test count — regardless of exit
   code.
 - **Lesson:** exit codes lie by omission. Verify artifacts, not signals.
 

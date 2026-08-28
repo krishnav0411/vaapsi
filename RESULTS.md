@@ -1,8 +1,8 @@
 # RESULTS.md — the live experiment
 
-> Status: **IN PROGRESS — frozen table lands here before submission.**
-> Written from the ledger, not by hand. This file will be regenerated with
-> final counts, per-cohort denominators and deviation notes, then frozen.
+> Status: **live experiment running.** Written from the ledger, not by hand.
+> Counts below are current as of the last regeneration; the table freezes
+> before submission with final per-cohort denominators and deviation notes.
 
 Cohort design and metric definitions are pre-registered in
 [`EXPERIMENT.md`](EXPERIMENT.md) — written before any subscription existed.

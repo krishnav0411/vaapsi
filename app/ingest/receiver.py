@@ -209,7 +209,8 @@ def _run_halt_consumer(conn: sqlite3.Connection, idempotency_key: str) -> None:
     an auditor hunts for. The savepoint isolates the consumer's writes: any
     exception rolls them back cleanly, logs one stdout line with the error,
     and the ingest still returns accepted — the webhook is the durable
-    record, and the next delivery (or scripts/demo_d6.py) retries creation.
+    record, and Razorpay's next delivery retries creation — the retry-queue
+    flush during the dispatcher stall proved exactly this path.
     """
     row = conn.execute(
         "SELECT * FROM webhook_events WHERE idempotency_key = ?", (idempotency_key,)
