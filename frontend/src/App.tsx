@@ -1,5 +1,6 @@
 /**
- * The D7.2 app shell: fixed 256px sidebar, AppBar and mode banner over a
+ * The D7.2 app shell: fixed 256px sidebar (docked on lg+, off-canvas
+ * behind a toggle on small viewports), AppBar and mode banner over a
  * max-w-1200 content column on the canvas. /api/mode is fetched once
  * here and refetched after a kill-switch 200, so the AppBar badge, the
  * sidebar readout and the banner can never disagree. Unknown URLs
@@ -24,10 +25,10 @@ export default function App() {
   return (
     <div className="min-h-screen bg-canvas font-sans text-text-normal">
       <Sidebar mode={currentMode} onKilled={mode.refetch} />
-      <div className="pl-sidebar">
+      <div className="pl-sidebar max-lg:pl-0">
         <AppBar mode={currentMode} />
         <ModeBanner mode={currentMode} />
-        <main className="mx-auto w-full max-w-content-max px-48 py-32">
+        <main className="mx-auto w-full max-w-content-max px-48 py-32 max-lg:px-24">
           <Routes>
             <Route path="/" element={<OverviewPage />} />
             <Route path="/episodes" element={<EpisodesPage />} />

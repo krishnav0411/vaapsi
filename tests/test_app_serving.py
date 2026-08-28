@@ -144,3 +144,46 @@ class TestBladeDesignLaw:
         fonts = sorted((FRONTEND / "public" / "fonts").rglob("*.woff2"))
         assert len(fonts) == 8
         assert all(f.suffix == ".woff2" for f in fonts)
+
+
+# ── Blade dark-mode design law (shell v2: the dist is the contract) ─────
+
+
+class TestBladeDarkModeLaw:
+    """The BUILT bundle under frontend/dist must carry the shell-v2 dark
+    flip: a .dark selector that redefines the token block, the azure
+    primary present in BOTH themes (light #1364f1, dark lifted step),
+    and light-mode token values byte-identical to the frozen law — the
+    dark flip must be strictly additive, so three sampled light tokens
+    are pinned by their exact hexes in the shipped CSS."""
+
+    @staticmethod
+    def built_css() -> str:
+        assets = FRONTEND / "dist" / "assets"
+        css_files = sorted(assets.glob("*.css"))
+        assert css_files, "npm run build must emit hashed css under frontend/dist/assets"
+        return "\n".join(f.read_text(encoding="utf-8") for f in css_files)
+
+    def test_built_css_declares_dark_selector(self):
+        css = self.built_css()
+        assert ".dark" in css
+        # The dark selector must actually flip tokens, not merely exist.
+        normalized = re.sub(r"\s+", "", css).lower()
+        assert ".dark{" in normalized
+        assert "--color-canvas:#0b0e14" in normalized
+
+    def test_built_css_carries_azure_primary_in_both_themes(self):
+        css = self.built_css().lower()
+        assert "#1364f1" in css  # light theme azure (azure.500)
+        assert "#6ea3f7" in css  # dark theme lifted azure (same family)
+
+    def test_light_mode_tokens_byte_identical(self):
+        normalized = re.sub(r"\s+", "", self.built_css()).lower()
+        for token, frozen in (
+            ("--color-primary", "#1364f1"),
+            ("--color-primary-hover", "#0e54cd"),
+            ("--color-primary-tint", "#eaf1fe"),
+        ):
+            assert f"{token}:{frozen}" in normalized, (
+                f"light-mode {token} must stay byte-identical to {frozen}"
+            )

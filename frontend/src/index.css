@@ -162,6 +162,134 @@
   --v-content-max: 1200px;
 }
 
+/* ── Dark theme: the same Blade contract, flipped ──────────────────────
+ * Derived dark palette (no Blade dark theme ships in v12.121.0, so these
+ * are derived from the light law and each carries its contrast math).
+ * Strategy: near-black canvas in the #0b0e14 family (never #000 — pure
+ * black crushes the elevated-step story and halos on OLED), elevation as
+ * LUMINANCE STEPS (each surface raises relative luminance ~1.5–2x over
+ * the one below it), borders as low-alpha white, and the azure primary
+ * LIFTED for dark (Blade's own dark guidance: on dark backgrounds the
+ * 500 step trades places with a lighter one).
+ *
+ * WCAG math below is relative-luminance contrast (WCAG 2.x), computed
+ * against the effective (composited) color where alpha is involved, over
+ * BOTH the surface it normally sits on and canvas. Body text ≥4.5:1 on
+ * every surface; large text ≥3:1. Body text is never pure #fff.
+ */
+.dark {
+  /* Elevation ladder (relative luminance): canvas 0.0044 → surface
+     0.0107 → row-hover 0.0156 → row-hover-strong 0.0215. */
+  --color-canvas: #0b0e14; /* near-black blue-gray; body text 17.7:1 */
+  --color-surface: #141b26; /* cards: one luminance step up; body 15.8:1 */
+  --color-row-hover: #19222f; /* second step; body 14.7:1 */
+  --color-row-hover-strong: #1f2937; /* third step; body 13.4:1 */
+
+  /* Borders as low-alpha white (decorative separators, WCAG non-text
+     exempt): effective #2a313a / #38404c / #4a5260 over surface. */
+  --color-border-subtle: rgba(255, 255, 255, 0.1);
+  --color-border-normal: rgba(255, 255, 255, 0.16);
+  --color-border-hover: rgba(255, 255, 255, 0.24);
+
+  /* Text ramp — never pure #fff: */
+  --color-text-normal: #f2f5fa; /* 15.8:1 on surface — body copy */
+  --color-text-subtle: #c6d0dd; /* 11.1:1 on surface */
+  --color-text-muted: #90a1b5; /* 6.6:1 on surface — 12px labels keep AA
+                                   4.5 with headroom on every surface */
+  --color-text-disabled: #66748c; /* disabled content is WCAG-exempt;
+                                     still ~3.7:1 on surface */
+
+  /* Primary: azure #1364f1 lifted to its light 400-family step so 14px
+     nav labels hit AA on dark (6.8:1 surface, 7.6:1 canvas, 6.5:1 on its
+     own tint). As a FILL it carries surface-dark text (Approve button):
+     6.8:1. Same hue family as light, never a second brand color. */
+  --color-primary: #6ea3f7;
+  --color-primary-hover: #93bcf9; /* hover moves LIGHTER on dark (the
+                                     inverse of light's #0e54cd); 8.9:1 */
+  --color-primary-tint: rgba(19, 100, 241, 0.16); /* same azure at 16%
+     alpha over surface — active nav keeps its "wash of primary" role */
+  --color-primary-border: rgba(110, 163, 247, 0.4); /* focus borders */
+
+  /* Status: washes stay low-alpha fills of the light solid hues; text
+     steps up to AA on the composited wash over EVERY surface (positive
+     9.4 / negative 7.2 / notice 7.9 / info 8.7 on surface, all ≥6.1 on
+     the darker three). Solids stay strong enough for non-text dots
+     (≥3.1:1 on surface). */
+  --color-positive-bg: rgba(0, 143, 71, 0.17);
+  --color-positive-text: #57d68c;
+  --color-positive-solid: #2fb264;
+  --color-negative-bg: rgba(208, 30, 17, 0.18);
+  --color-negative-text: #ff9187;
+  /* negative-solid keeps the LIGHT value #d01e11 on purpose: the kill
+     dialog paints white text on it (5.4:1); brightening it would break
+     text-white in ui/alert-dialog.tsx, which this token flip cannot
+     re-skin. */
+  --color-notice-bg: rgba(224, 94, 0, 0.17);
+  --color-notice-text: #ffa35e;
+  --color-notice-solid: #e58a3e;
+  --color-info-bg: rgba(0, 139, 209, 0.2);
+  --color-info-text: #7fc5ee;
+  --color-info-solid: #3fa4dc;
+  --color-neutral-bg: rgba(255, 255, 255, 0.08); /* 10.4:1 with subtle */
+  --color-neutral-text: #c6d0dd;
+
+  /* Purple stays DATA-VIZ ONLY; lifted one step for dark canvases. */
+  --color-viz-purple: #a98ef9;
+  --color-viz-purple-tint: rgba(143, 98, 249, 0.25);
+}
+
+/* The raw-var mirror of the flip above, so var() consumers see the same
+   dark values the utilities see. */
+.dark {
+  --v-primary: #6ea3f7;
+  --v-primary-hover: #93bcf9;
+  --v-primary-tint: rgba(19, 100, 241, 0.16);
+  --v-primary-border: rgba(110, 163, 247, 0.4);
+  --v-canvas: #0b0e14;
+  --v-surface: #141b26;
+  --v-border-subtle: rgba(255, 255, 255, 0.1);
+  --v-border-normal: rgba(255, 255, 255, 0.16);
+  --v-border-hover: rgba(255, 255, 255, 0.24);
+  --v-text-normal: #f2f5fa;
+  --v-text-subtle: #c6d0dd;
+  --v-text-muted: #90a1b5;
+  --v-text-disabled: #66748c;
+  --v-row-hover: #19222f;
+  --v-row-hover-strong: #1f2937;
+  --v-positive-bg: rgba(0, 143, 71, 0.17);
+  --v-positive-text: #57d68c;
+  --v-positive-solid: #2fb264;
+  --v-negative-bg: rgba(208, 30, 17, 0.18);
+  --v-negative-text: #ff9187;
+  --v-notice-bg: rgba(224, 94, 0, 0.17);
+  --v-notice-text: #ffa35e;
+  --v-notice-solid: #e58a3e;
+  --v-info-bg: rgba(0, 139, 209, 0.2);
+  --v-info-text: #7fc5ee;
+  --v-info-solid: #3fa4dc;
+  --v-neutral-bg: rgba(255, 255, 255, 0.08);
+  --v-neutral-text: #c6d0dd;
+  --v-viz-purple: #a98ef9;
+  --v-viz-purple-tint: rgba(143, 98, 249, 0.25);
+}
+
+/* Theme-flip transition, double-locked: the toggle only adds the
+   .theme-transition class when the user allows motion, and this media
+   query is the second lock. Colors only — no movement. */
+@media (prefers-reduced-motion: no-preference) {
+  html.theme-transition,
+  html.theme-transition *,
+  html.theme-transition *::before,
+  html.theme-transition *::after {
+    transition:
+      background-color 160ms ease,
+      border-color 160ms ease,
+      color 160ms ease,
+      fill 160ms ease,
+      stroke 160ms ease;
+  }
+}
+
 /* Money/metric numerals: tabular so amounts align in every table. */
 @utility tnum {
   font-variant-numeric: tabular-nums;
