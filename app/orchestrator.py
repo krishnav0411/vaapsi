@@ -363,7 +363,11 @@ def run_recovery_cycle(
             # produced a link id — nothing to compensate.
             link_id = None
             if result.get("action") is not None:
-                link_id = (result["action"].get("rzp_response") or {}).get("link_id")
+                rzp_response = result["action"].get("rzp_response") or {}
+                # Razorpay's create response carries the id under "id"
+                # (and echoes short_url); accept "link_id" too for any
+                # future wrapper that normalizes it.
+                link_id = rzp_response.get("id") or rzp_response.get("link_id")
             if fence_client is not None and link_id:
                 fencing.verify_after_write(conn, fence_client, subscription_id, link_id)
     summary["state_after"] = episodes.get_episode(conn, episode["id"])["state"]

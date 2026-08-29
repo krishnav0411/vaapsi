@@ -136,3 +136,59 @@ def test_control_cohort_through_execute_stays_blocked(db, freeze_clock):
     assert after["state"] == "SCORED"  # blocked episodes never move
     assert after["attempt_count"] == 0
     assert _ledger_count(db) == before
+
+
+def test_fence_receives_real_razorpay_link_id(db, freeze_clock, monkeypatch):
+    """Regression: Razorpay's create response carries the link under "id",
+    not "link_id". A real-shape response must reach the verify-after-write
+    fence — with a fencing client injected, the fence must see the id."""
+    from app.orchestrator import run_recovery_cycle
+
+    class RecordingFence:
+        def __init__(self): self.verify_calls = []
+        def fetch_subscription(self, subscription_id):
+            # platform exhausted its retries → REQUEST_RETRY stands down,
+            # the cycle falls through to the payment-link dispatch
+            return {"status": "halted", "short_url": None, "auth_attempts": 99}
+        def cancel_payment_link(self, link_id):
+            return {"cancelled": True, "id": link_id}
+
+    fence = RecordingFence()
+    seen = {}
+    real_verify = __import__("app.policy.fencing", fromlist=["verify_after_write"]).verify_after_write
+
+    def spy(conn, fc, subscription_id, link_id):
+        seen["link_id"] = link_id
+        return real_verify(conn, fc, subscription_id, link_id)
+
+    monkeypatch.setattr("app.orchestrator.fencing.verify_after_write", spy)
+
+    ep = _scored(db, "sub_FENCE1")
+    real_shape_response = {
+        "id": "plink_REGRESSION1",
+        "short_url": "https://rzp.io/rzp/regress1",
+        "amount": 49900,
+        "status": "created",
+    }
+
+    class StubClient:
+        def create_payment_link(self, payload):
+            return dict(real_shape_response)
+
+    class _Actions:
+        def create_recovery_link(self, conn, episode, decision):
+            return {
+                "action_id": "act_regress",
+                "channel": "payment_link",
+                "rzp_payload": {},
+                "rzp_response": dict(real_shape_response),
+            }
+
+    summary = run_recovery_cycle(
+        db, ep["subscription_id"], client=None, action_client=_Actions(), fence_client=fence
+    )
+
+    assert summary["status"] == "dispatched"
+    assert seen.get("link_id") == "plink_REGRESSION1", (
+        "fence must receive the real Razorpay 'id' field"
+    )
