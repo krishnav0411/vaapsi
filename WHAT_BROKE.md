@@ -43,6 +43,40 @@ failure story is part of its safety evidence.
   flushed from Razorpay's retry queue a day later — receiver idempotency
   handled them without double-processing.
 
+### 2b. The dispatcher went silent again — and this time it cost a recovery window
+
+- **What broke:** the day after failure 2, four ₹499 payment links were paid
+  in checkout (captures confirmed on Razorpay's API within minutes). The
+  `payment_link.paid` events never arrived — 2+ hours of silence, while the
+  webhook's own health checks kept hitting the receiver every minute.
+- **Root cause:** the dashboard's per-event selection had silently dropped to
+  zero active events while the configuration API still reported all of them
+  subscribed. The dispatcher had nothing enabled to send; health checks kept
+  flowing because they are not event-gated. A second desync of the same
+  family as failure 2, on a webhook that was mutated (re-pointed) several
+  times across tunnel rotations.
+- **How it was caught:** the same ground-truth discipline as failure 2, plus
+  a control experiment — a signed self-test posted through the tunnel was
+  accepted and stored in seconds, proving the receiver path live, and the
+  server log showed the provider's health checks arriving but zero event
+  POSTs. A ₹1 probe payment made *after* re-enabling the events landed its
+  webhook in ~1 second, which pinned the fault to the event-selection layer
+  and not the pipe.
+- **Fix:** re-enabled the events in the dashboard; a fresh event flowed
+  immediately. The four captures from the outage window could not be resent
+  (their dispatch window had passed, and the API refuses webhook deletion on
+  a live registration, so recreate-after-delete was unavailable). Instead of
+  bending the safety envelope, the episodes re-drive through the ordinary
+  policy path: the 48-hour outreach interval is honored, attempt 2 fires when
+  the window lifts, and the ledger records attempt 1, the outage, and
+  attempt 2 in sequence.
+- **Lesson:** twice now the integration's silent failure mode has been
+  Razorpay-side, and both times the ground-truth diff (their API vs. our
+  event table) found it in minutes. The compensating controls when a
+  provider loses events: read the provider's API for state, keep attempt
+  counters so a lawful retry remains possible, and never re-attribute money
+  from a reconstruction — only from a matched, real event.
+
 ### 3. First real dispatch died on Razorpay 400: reference_id over 40 chars
 
 - **What broke:** the first genuine outreach dispatch was rejected —
@@ -148,7 +182,7 @@ failure story is part of its safety evidence.
 
 ---
 
-The pattern across all ten: nothing failed silently that mattered. Either the
-ledger, the test suite, the gauntlet, or a ground-truth diff named the
+The pattern across all eleven: nothing failed silently that mattered. Either
+the ledger, the test suite, the gauntlet, or a ground-truth diff named the
 failure within one step. That is the property a money-adjacent agent needs
 most, and it is the reason this file is public.
