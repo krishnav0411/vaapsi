@@ -36,11 +36,53 @@ def health_ok(url):
     except OSError:
         return False
 
+# The event set the consumers act on (halt feed + payment-link verify path).
+# Razorpay's dashboard has a known desync mode where per-event selection
+# silently drops to zero (WHAT_BROKE 2b) while the config API still answers —
+# so every re-point re-asserts the full set, and a lost webhook is rebuilt
+# complete (ensure_webhook).
+WEBHOOK_EVENTS = [
+    'payment_link.paid', 'payment_link.partially_paid',
+    'payment_link.expired', 'payment_link.cancelled',
+    'subscription.activated', 'subscription.authenticated',
+    'subscription.charged', 'subscription.pending',
+    'subscription.halted', 'subscription.cancelled',
+    'subscription.completed', 'subscription.paused',
+    'subscription.resumed', 'subscription.updated',
+]
+
 def update_webhook(url, auth):
     import httpx
-    r = httpx.put(f'https://api.razorpay.com/v1/webhooks/{os.environ.get("VAAPSI_WEBHOOK_ID", "TV7th2OVQXy2WF")}',
-                  auth=auth, json={'url': url}, timeout=25)
+    # Razorpay's update API takes the event set as a name->true map, not a
+    # list (a list is rejected with 'Invalid event name/names: 1, 2, 3…').
+    events = {e: True for e in WEBHOOK_EVENTS}
+    webhook_id = os.environ.get('VAAPSI_WEBHOOK_ID', 'TV7th2OVQXy2WF')
+    payload = {'url': url, 'events': events}
+    r = httpx.put(f'https://api.razorpay.com/v1/webhooks/{webhook_id}',
+                  auth=auth, json=payload, timeout=25)
     return r.status_code == 200, r.text[:120]
+
+
+def ensure_webhook(url, auth):
+    """Create the webhook if it doesn't exist (idempotent bootstrapping).
+
+    Called by the watchdog at startup: if the registration was lost (a
+    dashboard deletion, an account reset, a fresh test account), the
+    watchdog rebuilds it with the full event set instead of PUTting into
+    a 404 forever. If it exists, the create call is skipped — update_webhook
+    keeps the URL and events fresh every tunnel rotation.
+    """
+    import httpx
+    webhook_id = os.environ.get('VAAPSI_WEBHOOK_ID', 'TV7th2OVQXy2WF')
+    probe = httpx.get(f'https://api.razorpay.com/v1/webhooks/{webhook_id}',
+                      auth=auth, timeout=25)
+    if probe.status_code == 200:
+        return True, 'exists'
+    events = {e: True for e in WEBHOOK_EVENTS}
+    r = httpx.post('https://api.razorpay.com/v1/webhooks',
+                   auth=auth, json={'url': f'{url}/webhooks/razorpay',
+                                    'events': events, 'active': True}, timeout=25)
+    return r.status_code in (200, 201), r.text[:120]
 
 def db_path():
     from app.settings import get_settings
@@ -76,6 +118,17 @@ def server_ok():
 
 def main():
     log('watchdog started')
+    # Boot-time webhook bootstrap: if the registration was lost entirely,
+    # rebuild it (URL + full event set + active) instead of PUTting into a
+    # 404 forever. See ensure_webhook / WHAT_BROKE 2b.
+    try:
+        from app.settings import get_settings
+        s = get_settings()
+        auth = (s.razorpay_key_id, s.razorpay_key_secret)
+        okboot, how = ensure_webhook('http://127.0.0.1:8000', auth)
+        log(f'webhook ensure: {"OK (" + how + ")" if okboot else "FAILED"}')
+    except Exception as exc:  # noqa: BLE001 — boot must never crash the loop
+        log(f'webhook ensure error (suppressed, will retry next poll): {exc}')
     while not STOP.exists():
         try:
             if not server_ok():
@@ -103,8 +156,10 @@ def main():
                     from app.settings import get_settings
                     s = get_settings()
                     auth = (s.razorpay_key_id, s.razorpay_key_secret)
-                    okput, _ = update_webhook(f'{url}/webhooks/razorpay', auth)
-                    log(f'webhook re-point: {"OK" if okput else "FAILED"}')
+                    # Re-assert URL *and* the full event set — the dashboard
+                    # has dropped per-event selections before (WHAT_BROKE 2b).
+                    okput, detail = update_webhook(f'{url}/webhooks/razorpay', auth)
+                    log(f'webhook re-point+events: {"OK" if okput else "FAILED " + detail[:60]}')
                     time.sleep(2)
                     st = signed_selftest(url, s.razorpay_webhook_secret)
                     log(f'self-test: {"OK" if st else "FAIL"}')
