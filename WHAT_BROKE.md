@@ -77,6 +77,29 @@ failure story is part of its safety evidence.
   counters so a lawful retry remains possible, and never re-attribute money
   from a reconstruction — only from a matched, real event.
 
+### 2c. The guardian itself died, and took the webhook with it
+
+- **What broke:** the tunnel watchdog — the process that keeps the tunnel
+  alive and re-points the webhook URL after every rotation — crashed
+  overnight on a DNS resolution error inside its own polling loop. The
+  tunnel process it was supposed to supervise survived as an orphan with a
+  fresh URL nobody recorded, while the webhook registration kept pointing
+  at the dead address. Net effect: hours of silently undeliverable
+  webhooks, and the same "config looks fine but nothing arrives" desync as
+  failures 2 and 2b, caused this time by our own resilience layer.
+- **Root cause:** an uncaught exception (transient `getaddrinfo` failure)
+  escaped the watchdog's main loop. A guardian without its own guard rail.
+- **How it was caught:** the process list showed cloudflared running with no
+  watchdog parent, and the watchdog log ended mid-stack-trace instead of at
+  a poll cycle.
+- **Fix:** the entire poll loop is now exception-guarded — any probe error
+  is logged as "poll error (suppressed, retrying)" and the loop continues;
+  plus the standard restart procedure (kill orphan tunnel, relaunch
+  watchdog, which re-points the webhook and runs a signed self-test).
+- **Lesson:** every layer you add to prevent failure is itself a new
+  failure surface. The watchdog now treats its own errors the way the
+  receiver treats malformed events: catch, log, survive.
+
 ### 3. First real dispatch died on Razorpay 400: reference_id over 40 chars
 
 - **What broke:** the first genuine outreach dispatch was rejected —
