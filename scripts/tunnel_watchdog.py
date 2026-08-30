@@ -77,36 +77,42 @@ def server_ok():
 def main():
     log('watchdog started')
     while not STOP.exists():
-        if not server_ok():
-            log('server down — relaunching uvicorn')
-            server_stdout = open(BASE / 'data' / 'server.log', 'a')  # noqa: SIM115 — held for child lifetime
-            subprocess.Popen([str(BASE / '.venv' / 'Scripts' / 'python.exe'), '-m', 'uvicorn', 'app.main:app',
-                              '--host', '127.0.0.1', '--port', '8000'],
-                             cwd=str(BASE), stdout=server_stdout, stderr=subprocess.STDOUT)
-            time.sleep(6)
-        url = tunnel_url()
-        ok = bool(url) and health_ok(url)
-        if not ok:
-            log(f'tunnel down (url={url}) — relaunching')
-            subprocess.run(['taskkill', '/F', '/IM', 'cloudflared.exe'], capture_output=True, check=False)
-            with open(TUNNEL_LOG, 'w', encoding='utf-8') as f:
-                f.write('')
-            # Keep the handle open for the life of the child process (deliberate — SIM115 suppressed)
-            tunnel_stdout = open(TUNNEL_LOG, 'w')  # noqa: SIM115
-            subprocess.Popen([str(BASE / 'tools' / 'cloudflared.exe'), 'tunnel', '--url', 'http://127.0.0.1:8000'],
-                             stdout=tunnel_stdout, stderr=subprocess.STDOUT)
-            time.sleep(12)
+        try:
+            if not server_ok():
+                log('server down — relaunching uvicorn')
+                server_stdout = open(BASE / 'data' / 'server.log', 'a')  # noqa: SIM115 — held for child lifetime
+                subprocess.Popen([str(BASE / '.venv' / 'Scripts' / 'python.exe'), '-m', 'uvicorn', 'app.main:app',
+                                  '--host', '127.0.0.1', '--port', '8000'],
+                                 cwd=str(BASE), stdout=server_stdout, stderr=subprocess.STDOUT)
+                time.sleep(6)
             url = tunnel_url()
-            if url:
-                log(f'new tunnel: {url}')
-                from app.settings import get_settings
-                s = get_settings()
-                auth = (s.razorpay_key_id, s.razorpay_key_secret)
-                okput, _ = update_webhook(f'{url}/webhooks/razorpay', auth)
-                log(f'webhook re-point: {"OK" if okput else "FAILED"}')
-                time.sleep(2)
-                st = signed_selftest(url, s.razorpay_webhook_secret)
-                log(f'self-test: {"OK" if st else "FAIL"}')
+            ok = bool(url) and health_ok(url)
+            if not ok:
+                log(f'tunnel down (url={url}) — relaunching')
+                subprocess.run(['taskkill', '/F', '/IM', 'cloudflared.exe'], capture_output=True, check=False)
+                with open(TUNNEL_LOG, 'w', encoding='utf-8') as f:
+                    f.write('')
+                # Keep the handle open for the life of the child process (deliberate — SIM115 suppressed)
+                tunnel_stdout = open(TUNNEL_LOG, 'w')  # noqa: SIM115
+                subprocess.Popen([str(BASE / 'tools' / 'cloudflared.exe'), 'tunnel', '--url', 'http://127.0.0.1:8000'],
+                                 stdout=tunnel_stdout, stderr=subprocess.STDOUT)
+                time.sleep(12)
+                url = tunnel_url()
+                if url:
+                    log(f'new tunnel: {url}')
+                    from app.settings import get_settings
+                    s = get_settings()
+                    auth = (s.razorpay_key_id, s.razorpay_key_secret)
+                    okput, _ = update_webhook(f'{url}/webhooks/razorpay', auth)
+                    log(f'webhook re-point: {"OK" if okput else "FAILED"}')
+                    time.sleep(2)
+                    st = signed_selftest(url, s.razorpay_webhook_secret)
+                    log(f'self-test: {"OK" if st else "FAIL"}')
+        # A transient DNS failure inside any probe must never kill the loop —
+        # the watchdog that dies IS the outage (2026-08-30: getaddrinfo crash
+        # left an orphan tunnel and a dead webhook URL for hours).
+        except Exception as exc:  # noqa: BLE001 — the loop must survive anything
+            log(f'poll error (suppressed, retrying): {exc}')
         time.sleep(60)
 
 if __name__ == '__main__':
