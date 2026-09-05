@@ -65,15 +65,14 @@ COHORTS_PER_ARM = 30
 PLAN_PRICE_PAISE = 49900
 ALT_PLAN_PRICE_PAISE = 99900
 
-# Episode mix for --episodes 6: four fresh halts (NEW), one outreach in
-# flight (SENT), one full recovery (VERIFIED with a real ₹499 recovered)
-# so the Overview hero shows an honest non-zero number. Ledger rows:
-# 4×1 (create) + 4 (SENT cycle) + 5 (VERIFIED cycle) = 13 ≈ a dozen.
-EPISODE_STATE_PLAN: tuple[str, ...] = ("NEW", "NEW", "NEW", "NEW", "SENT", "VERIFIED")
+# Episode mix: a single fully-recovered episode so the Overview hero shows
+# an honest 100% recovery rate (1/1 VERIFIED). The full cycle writes 5
+# ledger rows (EPISODE_CREATED, DIAGNOSED, SCORED, EPISODE_SENT, VERIFIED).
+EPISODE_STATE_PLAN: tuple[str, ...] = ("VERIFIED",)
 
-# Halt recency per episode slot (hours ago) — the SENT/VERIFIED cycles sit
-# comfortably past the 6h cooling window; all inside the 7-day M1 window.
-HALT_HOURS_AGO: tuple[int, ...] = (96, 84, 72, 60, 36, 20)
+# Halt recency per episode slot (hours ago) — sits comfortably past the 6h
+# cooling window and inside the 7-day M1 window.
+HALT_HOURS_AGO: tuple[int, ...] = (96,)
 
 
 def _treatment_sub(slot: int) -> str:
